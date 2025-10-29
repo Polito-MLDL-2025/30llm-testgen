@@ -70,7 +70,7 @@ Applied Data Science Project
       <type>: <short description>
       ```
     - **Types**:
-      - `feat`: A new feature
+      - `feature` or`feat`: A new feature
       - `fix`: A bug fix
       - `docs`: Documentation changes
       - `chore`: maintenance tasks, repo setup, config, etc.
@@ -92,7 +92,7 @@ Applied Data Science Project
     - **Types**:
       - `main` or `master`: Stable, production-ready code
       - `develop`: Integration branch for features before release (optional)
-      - `feature`: For new features or enhancements
+      - `feature` or `feat`: For new features or enhancements
       - `fix`: For bug fixes
       - `hotfix`: For urgent production fixes
       - `chore`: For maintenance, build, or config tasks
