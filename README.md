@@ -1,10 +1,19 @@
-# ADSP-Team1
+# 30llm: Multi-Agent LLM Systems for Collaborative Test Case Generation
 
 <a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
 </a>
 
-Applied Data Science Project
+This project investigates how Large Language Model (LLM) agents can be used to automatically
+generate high-quality software test cases. Traditional automated testing tools struggle with tasks
+that require multi-perspective reasoning—such as understanding user intent, exploring edge cases, or
+applying domain knowledge. In contrast, multi-agent LLM architectures enable multiple specialized
+agents to collaborate, debate, or compete to produce more comprehensive test artefacts.
+
+## Main Goal
+
+The primary goal of this project is to determine whether multi-agent LLM systems can outperform
+single-agent or traditional methods in generating comprehensive, diverse, and effective test cases.
 
 ## Project Organization
 
@@ -18,7 +27,7 @@ Applied Data Science Project
 │   ├── processed      <- The final, canonical data sets for modeling.
 │   └── raw            <- The original, immutable data dump.
 │
-├── docs               <- A default mkdocs project; see www.mkdocs.org for details
+├── docs               <- MkDocs project for documentation
 │
 ├── models             <- Trained and serialized models, model predictions, or model summaries
 │
@@ -27,7 +36,7 @@ Applied Data Science Project
 │                         `1.0-jqp-initial-data-exploration`.
 │
 ├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         adsp and configuration for tools like black
+│                         llm30 and configuration for tools like ruff
 │
 ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
 │
@@ -37,11 +46,13 @@ Applied Data Science Project
 ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
 │                         generated with `pip freeze > requirements.txt`
 │
-├── setup.cfg          <- Configuration file for flake8
+├── tests              <- Unit tests and fixtures for the project
 │
-└── adsp   <- Source code for use in this project.
+├── adsp               <- Legacy template module retained for reference
+│
+└── llm30   <- Primary source code for use in this project.
     │
-    ├── __init__.py             <- Makes adsp a Python module
+    ├── __init__.py             <- Makes llm30 a Python module
     │
     ├── config.py               <- Store useful variables and configuration
     │

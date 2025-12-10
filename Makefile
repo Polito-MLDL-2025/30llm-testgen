@@ -2,7 +2,7 @@
 # GLOBALS                                                                       #
 #################################################################################
 
-PROJECT_NAME = adsp-team1
+PROJECT_NAME = 30llm
 PYTHON_VERSION := 3.10
 PYTHON_INTERPRETER := python3
 VENV_DIR := .venv
