@@ -132,9 +132,16 @@ if __name__ == "__main__":
 
     # Run the QaAgent function on each problem
     start_index = 0
-    end_index = 164 if args.dataset == "humaneval" else 500
+    dataset_limit = 164 if args.dataset == "humaneval" else 500
+    end_index = min(dataset_limit, len(problems))
+    if args.max_tasks is not None:
+        if args.max_tasks < 0:
+            raise ValueError("max_tasks must be non-negative.")
+        end_index = min(end_index, start_index + args.max_tasks)
+    if args.max_workers <= 0:
+        raise ValueError("max_workers must be positive.")
     # Create a ThreadPoolExecutor
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
         # Submit all problems to the executor
         future_to_problem = {
             executor.submit(
