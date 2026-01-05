@@ -39,6 +39,18 @@ def parse_args():
         default="gpt-4o",
         help="Specify the model to use."
     )
+    parser.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="Maximum number of tasks to process (default: all)."
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=2,
+        help="Number of worker threads to use (default: 2)."
+    )
     return parser.parse_args()
 
 def update_total_stats(result, total_stats):

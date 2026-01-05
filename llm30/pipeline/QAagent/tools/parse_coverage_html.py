@@ -15,11 +15,17 @@ def extract_success_percentage(html_content, target_function_name):
         if function_name_element and function_name_element['value'] == target_function_name:
             # If the function name matches, extract the coverage percentage
             coverage_element = row.find('td', class_='right')
+            if coverage_element is None:
+                coverage_element = row.find('td', attrs={'data-ratio': True})
+            if coverage_element is None:
+                tds = row.find_all('td')
+                if tds:
+                    coverage_element = tds[-1]
             if coverage_element:
                 coverage_text = coverage_element.text.strip()
-                coverage_match = re.search(r'(\d+)%', coverage_text)
+                coverage_match = re.search(r'(\d+(?:\.\d+)?)%', coverage_text)
                 if coverage_match:
-                    return coverage_match.group(1)
+                    return f"{coverage_match.group(1)}%"
 
     # If the function name is not found or coverage can't be extracted
     return "0.0%"
