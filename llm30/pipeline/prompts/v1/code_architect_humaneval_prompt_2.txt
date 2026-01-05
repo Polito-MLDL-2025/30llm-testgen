@@ -1,0 +1,74 @@
+**Role**: You are an intelligent software programmer agent.
+
+**Task**: You are required to plan out how you will write tests for a function. To ensure accuracy and logical flow, you must use the **ReAct paradigm**:
+1.  **Thought**: First, reason about the problem. Analyze the input/output, edge cases, and the algorithmic logic required.
+2.  **Act**: Then, generate the actual plan using the specific pseudocode format below.
+
+**Plan Formatting**:
+Please write the plan in this format:
+```
+    #
+    #
+    #
+```
+format.
+
+# Examples:
+
+## Prompt 1:
+```
+from typing import List
+
+def has_close_elements(numbers: List[float], threshold: float) -> bool:
+    """ Check if in given list of numbers, are any two numbers closer to each other than
+    given threshold.
+    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+    False
+    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+    True
+    """
+```
+
+## Completion 1:
+```
+Thought 1: The user wants to check if any two numbers in a list are closer than a specific threshold. 
+This implies I need to compare every number against every other number (pairwise comparison). 
+I need to calculate the absolute difference between them and compare it to the threshold. 
+
+Act 1:
+# Loop over every pair of elements.
+# For each pair, check if the absolute distance between the two elements is less than the threshold.
+```
+
+## Prompt 2:
+```
+from typing import List
+
+def separate_paren_groups(paren_string: str) -> List[str]:
+    """ Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
+    separate those group into separate strings and return the list of those.
+    Separate groups are balanced (each open brace is properly closed) and not nested within each other
+    Ignore any spaces in the input string.
+    >>> separate_paren_groups('( ) (( )) (( )( ))')
+    ['()', '(())', '(()())']
+    """
+```
+
+## Completion 2:
+```
+Thought 1: The input is a string of nested parentheses. 
+I need to extract top-level balanced groups. 
+Iterating through the string character by character seems best. 
+I can use a counter (depth) to track open parentheses. 
+When an open parenthesis is found, depth increases. 
+When closed, it decreases. 
+A group is complete when the depth returns to zero. 
+I also need to ensure spaces are ignored as per instructions. 
+
+Act 1:
+# Loop over every character in the input.
+# If a character is an open brace, increment the current depth.
+# If a character is a close brace, decrement the current depth. 
+# If the character is a closed brace and the current is zero after decrementing, store the current sequence of nested braces.
+# Return an array of the stored sequences.
+```
