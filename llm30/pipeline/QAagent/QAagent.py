@@ -40,31 +40,43 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     logger.info(f'Starting problem ID {problem_id}')
 
     # generate natural language pseudocode from problem["prompt"]
-    plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name, logger)
-    num_input_tokens += plan_input_tokens
-    num_output_tokens += plan_output_tokens
+    plan = []
+    for i in range(len(code_architect_prompt)):
+        p, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt[i], model_name, logger)
+        plan.append(p)
+        num_input_tokens += plan_input_tokens
+        num_output_tokens += plan_output_tokens
 
     # generate tests
     logger.info(f'Generating tests for problem ID {problem_id}')
+    generated_tests = []
     try:
-        generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan, test_generator_prompt, model_name, logger)
-        num_input_tokens += test_input_tokens
-        num_output_tokens += test_output_tokens
+        for i in range(len(plan)):
+            tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan[i], test_generator_prompt, model_name, logger)
+            generated_tests.append(tests)
+            num_input_tokens += test_input_tokens
+            num_output_tokens += test_output_tokens
     except Exception:
         return 0, 0, 0, 0, 0
 
+    #TODO: Merge test here
+    #
+    #
+    #
+    #
+
     # log plan/pseudocode and tests
-    write_plan_and_tests_qa(log_folder, problem_id, plan, generated_tests)
+    write_plan_and_tests_qa(log_folder, problem_id, plan[0], generated_tests[0]) #TODO: change plan and tests input here to your merged results
 
     # check the code coverage of the generated tests
     logger.info(f'Checking code coverage for problem ID {problem_id}')
 
     # get coverage reports
-    first_five_coverage_report, total_coverage_report = get_coverage(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], generated_tests, problem_id, log_folder)
+    first_five_coverage_report, total_coverage_report = get_coverage(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], generated_tests[0], problem_id, log_folder) #TODO: change tests input here to your merged results
 
     # Calculate generated tests accuracy on the canonical solution. # passes / total tests
     problem_folder = os.path.join(log_folder, f'problem_{problem_id}')
-    accuracy, test_results = get_accuracy(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], generated_tests, problem_folder, problem_id)
+    accuracy, test_results = get_accuracy(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], generated_tests[0], problem_folder, problem_id) #TODO: change tests input here to your merged results
 
     # Extract and log test coverage
     first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
@@ -101,7 +113,10 @@ if __name__ == "__main__":
     # Load prompts and problems
     prompt_paths = {
         "humaneval": {
-            "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt.txt"),
+            "code_architect": [
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_1.txt"),
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_2.txt"),
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
         },
         "mbpp": {
@@ -132,9 +147,9 @@ if __name__ == "__main__":
 
     # Run the QaAgent function on each problem
     start_index = 0
-    end_index = 164 if args.dataset == "humaneval" else 500
+    end_index = 1 if args.dataset == "humaneval" else 500 #TODO: end_index = 1 for developing, change back to 164 when run for real.
     # Create a ThreadPoolExecutor
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor: #TODO: increase max_workers to speed up the process
         # Submit all problems to the executor
         future_to_problem = {
             executor.submit(
