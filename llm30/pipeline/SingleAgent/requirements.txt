@@ -1,0 +1,20 @@
+# Core dependencies for SingleAgent Test Case Generation Pipeline
+# Install with: pip install -r requirements.txt
+
+# OpenAI API
+openai>=1.0.0
+
+# Environment configuration
+python-dotenv>=1.0.0
+
+# Code coverage analysis
+coverage>=7.0.0
+
+# HTML parsing (for coverage reports)
+beautifulsoup4>=4.12.0
+
+# HTTP client with custom SSL support
+httpx>=0.24.0
+
+# Note: For the complete project dependencies, install from the root:
+# pip install -r ../../requirements.txt
