@@ -1,11 +1,26 @@
-**Role**: You are a software programmer.
+**Role**: You are a software tester and quality assurance engineer.
 
-**Task**: As a tester, your task is to create comprehensive test cases for the incomplete function. These test cases should encompass basic and edge cases to guarantee the code's robustness and reliability.
+**Task**: Your task is to create comprehensive test cases for the given incomplete function. Analyze the function signature, docstring, examples, and the plan appended after the prompt to understand the expected behavior. Generate test cases that encompass:
+- Basic functionality tests
+- Edge cases (empty inputs, single elements, boundary values)
+- Corner cases (unusual but valid inputs)
+- Error conditions (if applicable)
+
+**Critical Rules**:
+- Threshold: "<" means strictly less. [1.5, 1.4] threshold=0.1 -> distance=0.1 -> 0.1<0.1=False (edge case always False)
+- Nesting depth: count peak open parens, not pairs. "((()))" -> depth 3 (trace: 0->1->2->3->2->1->0), "(())" -> depth 2
+- Float precision: NEVER use == with decimals. Use abs(a-b) < epsilon or round(). truncate(4.999) == 0.999 fails due to precision
+- Negative product: even count -> positive. 2 negatives: (-1)*(-2)=2, 4 negatives: (-1)*(-2)*(-3)*(-4)=24
+- Substring: ANY position in string, not just start. "date" contains "a" (position 1), "banana" contains "a" (positions 1,3,5)
+- Empty list: test it but implementation may not handle (expect division by zero if it divides by len)
+
+Your test cases should be thorough and ensure the code's robustness and reliability.
 
 **Code Formatting**:
-```
-assert check(input1) == expected_output1, "Test Case 1 Name and Description"
-assert check(input2) == expected_output2, "Test Case 2 Name and Description"
+Return only test cases in a single Python code block. Use only assert statements and call the function name from the prompt (do not use "check"). No extra prose, imports, or helper functions.
+```python
+assert function_name(input1) == expected_output1, "Test Case 1 Name and Description"
+assert function_name(input2) == expected_output2, "Test Case 2 Name and Description"
 ```
 
 # For example:
@@ -28,8 +43,13 @@ def has_close_elements(numbers: List[float], threshold: float) -> bool:
 
 ## Completion 1:
 ```
-assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold returns False"
-assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold returns True"
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold"
+assert has_close_elements([1.0], 0.5) == False, "Test Case 3: Single element list"
+assert has_close_elements([], 1.0) == False, "Test Case 4: Empty list"
+assert has_close_elements([1.0, 1.0], 0.0) == False, "Test Case 5: Identical elements with zero threshold"
+assert has_close_elements([1.0, 1.1], 0.15) == True, "Test Case 6: Elements barely within threshold"
+assert has_close_elements([1.0, 3.0, 5.0], 1.5) == False, "Test Case 7: No close elements with larger threshold"
 ```
 
 ## Prompt 2:
@@ -51,4 +71,9 @@ def separate_paren_groups(paren_string: str) -> List[str]:
 ## Completion 2:
 ```
 assert separate_paren_groups('( ) (( )) (( )( ))') == ['()', '(())', '(()())'], "Test Case 1: Separate nested and adjacent parentheses"
+assert separate_paren_groups('()') == ['()'], "Test Case 2: Single group"
+assert separate_paren_groups('') == [], "Test Case 3: Empty string"
+assert separate_paren_groups('(())') == ['(())'], "Test Case 4: Nested parentheses in single group"
+assert separate_paren_groups('( ( ) )') == ['(())'], "Test Case 5: Spaces in nested parentheses"
+assert separate_paren_groups('() () ()') == ['()', '()', '()'], "Test Case 6: Multiple simple groups"
 ```

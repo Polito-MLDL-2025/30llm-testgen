@@ -130,6 +130,8 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
     import sys
     from io import StringIO as StdoutCapture
 
+    import traceback
+
     cov_total = coverage.Coverage(concurrency='thread', data_suffix=True)
     try:
         cov_total.start()
@@ -141,8 +143,8 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         finally:
             sys.stdout = old_stdout
     except (AssertionError, Exception):
-        # Silently handle test failures during coverage
-        pass
+        print(f"Coverage test failure (total tests) for problem {problem_id}:")
+        traceback.print_exc()
     finally:
         cov_total.stop()
         cov_total.save()
@@ -167,8 +169,8 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         finally:
             sys.stdout = old_stdout
     except (AssertionError, Exception):
-        # Silently handle test failures during coverage
-        pass
+        print(f"Coverage test failure (first five tests) for problem {problem_id}:")
+        traceback.print_exc()
     finally:
         cov_five.stop()
         cov_five.save()
