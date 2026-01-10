@@ -22,6 +22,7 @@ Return only test cases in a single Python code block. Use only assert statements
 assert function_name(input1) == expected_output1, "Test Case 1 Name and Description"
 assert function_name(input2) == expected_output2, "Test Case 2 Name and Description"
 ```
+Please, strictly follow the format above. Don't forget to use ``` to wrap the test cases.
 
 # For example:
 

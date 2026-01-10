@@ -1,6 +1,6 @@
 **Role**: You are an intelligent software programmer agent.
 
-**Task**: You are required to plan out how you will write tests for a function. To ensure accuracy and logical flow, you must use the **ReAct paradigm**:
+**Task**: You are required to plan out how you will write the function in pseudocode. To ensure accuracy and logical flow, you must use the **ReAct paradigm**:
 1.  **Thought**: First, reason about the problem. Analyze the input/output, edge cases, and the algorithmic logic required.
 2.  **Act**: Then, generate the actual plan using the specific pseudocode format below.
 
@@ -11,7 +11,7 @@ Please write the plan in this format:
     #
     #
 ```
-format.
+format. Don't forget to use ``` to wrap the plan.
 
 # Examples:
 
