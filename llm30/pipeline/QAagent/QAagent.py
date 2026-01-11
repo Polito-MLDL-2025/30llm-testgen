@@ -60,10 +60,6 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         return 0, 0, 0, 0, 0
 
     #TODO: Merge test here
-    #
-    #
-    #
-    #
 
     # log plan/pseudocode and tests
     write_plan_and_tests_qa(log_folder, problem_id, plan[0], generated_tests[0]) #TODO: change plan and tests input here to your merged results
