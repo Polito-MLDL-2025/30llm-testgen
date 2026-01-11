@@ -25,10 +25,11 @@ def write_domain_and_tests_qa(log_folder, problem_id, domain, tests):
     with open(os.path.join(result_folder, 'generated_tests.txt'), 'w') as f:
         f.write(tests)
 
-def create_log_folder():
-    """Creates a timestamped folder for logs."""
+def create_log_folder(prefix="QAagent"):
+    """Creates a timestamped folder for logs with a customizable prefix."""
+    from datetime import datetime
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    log_folder = os.path.join('logs', f'QAagent-{timestamp}')
+    log_folder = os.path.join('logs', f'{prefix}-{timestamp}')
     os.makedirs(log_folder, exist_ok=True)
     return log_folder
 
