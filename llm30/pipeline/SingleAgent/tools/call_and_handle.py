@@ -33,6 +33,7 @@ def call_and_handle(messages, model, timeout=60):
         model=model,
         messages=messages,
         temperature=0,
+        top_p=1.0,
         timeout=timeout
     )
 
