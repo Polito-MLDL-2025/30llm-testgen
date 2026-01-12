@@ -173,7 +173,7 @@ if __name__ == "__main__":
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_2.txt"),
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
-            "test_generator_guided": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_guided.txt"),
+            "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_original.txt"),
             "merger": os.path.join(pipeline_dir, "prompts", "v1", "merger_llm_humaneval_prompt.txt"),
         },
         "mbpp": {
@@ -183,13 +183,12 @@ if __name__ == "__main__":
         }
     }
     code_architect_prompt = prompt_paths[args.dataset]["code_architect"]
-    
-    # Select test generator prompt based on generator argument
-    if args.generator == "guided":
-        test_generator_prompt = prompt_paths[args.dataset].get("test_generator_guided", prompt_paths[args.dataset]["test_generator"])
-    else:
-        test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
-    
+
+    # Select test generator prompt based on generator-prompt argument
+    test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
+    if args.generator_prompt == "original":
+        test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
+
     merger_prompt_path = prompt_paths[args.dataset].get("merger", None)
 
     # Load dataset

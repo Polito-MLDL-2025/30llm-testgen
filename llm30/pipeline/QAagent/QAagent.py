@@ -138,6 +138,7 @@ if __name__ == "__main__":
         "humaneval": {
             "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt.txt"),
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
+            "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_original.txt"),
         },
         "mbpp": {
             "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt"),
@@ -146,6 +147,8 @@ if __name__ == "__main__":
     }
     code_architect_prompt = prompt_paths[args.dataset]["code_architect"]
     test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
+    if args.generator_prompt == "original":
+        test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
 
     # Load dataset
     dataset_map = {

@@ -63,7 +63,10 @@ def save_all_agents_results(log_folder, problem_id, agent_results):
 def generate_plan(problem_name, code_architect_prompt, model_name, logger):
     logger.info(f'Generating pseudocode for problem ID {problem_name["task_id"]}')
     plan, plan_input_tokens, plan_output_tokens = architect_code(problem_name, code_architect_prompt, model_name)
-    logger.info(f'Generated plan: {plan}\nInput tokens: {plan_input_tokens}, Output tokens: {plan_output_tokens}')
+    logger.info(
+        f'Generated plan ({len(plan.splitlines())} lines). '
+        f'Tokens - Input: {plan_input_tokens}, Output: {plan_output_tokens}'
+    )
     return plan, plan_input_tokens, plan_output_tokens
 
 def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger):
@@ -72,7 +75,10 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
         tests, test_input_tokens, test_output_tokens, _ = generate_test_code(
             add_plan(problem_name, plan), problem_name["task_id"], test_generator_prompt, model_name, logger
         )
-        logger.info(f'Generated tests: {tests}\nInput tokens: {test_input_tokens}, Output tokens: {test_output_tokens}')
+        logger.info(
+            f'Generated {len(tests.splitlines())} lines of tests. '
+            f'Tokens - Input: {test_input_tokens}, Output: {test_output_tokens}'
+        )
         return tests, test_input_tokens, test_output_tokens
     except Exception as e:
         logger.error(f'Error generating tests: {e}')
@@ -80,7 +86,7 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
 
 def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompts, test_generator_prompt, log_folder, logger):
     problem_id = problem_name["task_id"]
-    logger.info(f'Starting competitive QA for problem ID {problem_id}')
+    logger.info(f'Starting Competitive QA Agent pipeline for problem ID {problem_id}')
     agent_results = []
     for i, code_architect_prompt in enumerate(code_architect_prompts):
         plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name, logger)
@@ -151,10 +157,21 @@ def process_problem_competitive(problem, model, dataset, log_folder, code_archit
 
 if __name__ == "__main__":
     args = parse_args()
+
+    # Setup
     model = args.model
     dataset = args.dataset
     log_folder = create_log_folder(prefix="QAagent_competitive")
     logger = setup_logger(log_folder)
+
+    print(f"\n{'='*60}")
+    print("QA Agent Competitive Test Case Generation Pipeline")
+    print(f"{'='*60}")
+    print(f"Model: {model}")
+    print(f"Dataset: {dataset}")
+    print(f"Log folder: {log_folder}")
+    print(f"Max workers: {args.max_workers}")
+
     pipeline_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     prompt_paths = {
         "humaneval": {
@@ -163,6 +180,7 @@ if __name__ == "__main__":
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_2.txt"),
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
+            "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_original.txt"),
         },
         "mbpp": {
             "code_architect": [os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt")],
@@ -171,12 +189,16 @@ if __name__ == "__main__":
     }
     code_architect_prompts = prompt_paths[args.dataset]["code_architect"]
     test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
+    if args.generator_prompt == "original":
+        test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
     dataset_map = {
         "humaneval": os.path.join(pipeline_dir, "datasets", "humaneval", "problems.jsonl"),
         "mbpp": os.path.join(pipeline_dir, "datasets", "mbpp", "problems.jsonl")
     }
     problems = read_problems(dataset_map[args.dataset])
-    print(f"Loaded problems from: {dataset_map[args.dataset]}")
+    print(f"Loaded {len(problems)} problems from: {dataset_map[args.dataset]}")
+
+    # Initialize statistics
     total_stats = {
         'input_tokens': 0,
         'output_tokens': 0,
@@ -185,6 +207,8 @@ if __name__ == "__main__":
         'accuracy': 0.0,
         'evaluated': 0
     }
+
+    # Determine problem range
     start_index = 0
     dataset_limit = 164 if args.dataset == "humaneval" else 500
     end_index = min(dataset_limit, len(problems))
@@ -194,6 +218,12 @@ if __name__ == "__main__":
         end_index = min(end_index, start_index + args.max_tasks)
     if args.max_workers <= 0:
         raise ValueError("max_workers must be positive.")
+
+    total_problems = end_index - start_index
+    print(f"Processing {total_problems} problems (index {start_index} to {end_index-1})")
+    print(f"{'='*60}\n")
+
+    # Create a ThreadPoolExecutor and process problems
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
         future_to_problem = {
             executor.submit(
@@ -208,13 +238,39 @@ if __name__ == "__main__":
             ): i
             for i in range(start_index, end_index)
         }
+
+        # Process completed tasks
+        completed = 0
         for future in concurrent.futures.as_completed(future_to_problem):
             problem_index = future_to_problem[future]
+            completed += 1
             try:
                 result = future.result()
                 if result:
+                    task_id, input_tokens, output_tokens, first_five_cov, total_cov, accuracy = result
                     update_total_stats(result, total_stats)
                     write_summary(log_folder, total_stats)
                     write_details(log_folder, result)
+
+                    # Compact progress output with key metrics
+                    print(f"[{completed}/{total_problems}] {task_id:<20} | "
+                          f"Accuracy: {accuracy:>5.1f}% | "
+                          f"Coverage: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"Tokens: {input_tokens}+{output_tokens}")
             except Exception as e:
-                logger.error(f"Error processing problem: {e}")
+                logger.error(f"Error processing problem at index {problem_index}: {e}")
+                print(f"[{completed}/{total_problems}] Error at index {problem_index}")
+
+    # Final summary
+    print(f"\n{'='*60}")
+    print("QA Agent Competitive Pipeline Completed!")
+    print(f"{'='*60}")
+    if total_stats['evaluated'] > 0:
+        print(f"Problems evaluated: {total_stats['evaluated']}")
+        print(f"Average accuracy: {total_stats['accuracy'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five coverage: {total_stats['first_five_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total coverage: {total_stats['coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Total input tokens: {total_stats['input_tokens']}")
+        print(f"Total output tokens: {total_stats['output_tokens']}")
+    print(f"Results saved to: {log_folder}")
+    print(f"{'='*60}\n")
