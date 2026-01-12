@@ -99,11 +99,14 @@
 import os
 import ast
 import logging
+import threading
 import traceback
 import coverage
 from io import StringIO
 import runpy
 from llm30.pipeline.QAagent.tools.parse_coverage_html import extract_success_percentage
+
+_COVERAGE_LOCK = threading.Lock()
 
 def get_coverage(code_string, test_string, problem_id, log_folder):
     logger = logging.getLogger('SingleAgentLogger')
@@ -180,68 +183,70 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         f2.write(code_string)
         f2.write("\n" + first_five_tests)
 
-    # Set up coverages (suppress stdout to reduce noise)
-    import sys
-    from io import StringIO as StdoutCapture
+    # Coverage is not thread-safe; serialize coverage execution across workers.
+    with _COVERAGE_LOCK:
+        # Set up coverages (suppress stdout to reduce noise)
+        import sys
+        from io import StringIO as StdoutCapture
 
-    cov_total = coverage.Coverage(concurrency='thread', data_suffix=True)
-    try:
-        cov_total.start()
-        # Suppress stdout during test execution
-        old_stdout = sys.stdout
-        sys.stdout = StdoutCapture()
+        cov_total = coverage.Coverage(concurrency='thread', data_suffix=True)
         try:
-            runpy.run_path(os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage', 'total_coverage.py'))
+            cov_total.start()
+            # Suppress stdout during test execution
+            old_stdout = sys.stdout
+            sys.stdout = StdoutCapture()
+            try:
+                runpy.run_path(os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage', 'total_coverage.py'))
+            finally:
+                sys.stdout = old_stdout
+        except (AssertionError, Exception):
+            logger.warning(
+                f"Coverage test failure (total tests) for problem {problem_id}:\n{traceback.format_exc()}"
+            )
         finally:
-            sys.stdout = old_stdout
-    except (AssertionError, Exception):
-        logger.warning(
-            f"Coverage test failure (total tests) for problem {problem_id}:\n{traceback.format_exc()}"
-        )
-    finally:
-        cov_total.stop()
-        cov_total.save()
-        # Generate the coverage reports
-        report_output_total = StringIO()
-        try:
-            cov_total.report(show_missing=True, file=report_output_total)
-            cov_total.html_report(directory=os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage'))
-        except coverage.exceptions.CoverageException as e:
-            logger.warning(f"Coverage report failure (total tests) for problem {problem_id}: {e}")
+            cov_total.stop()
+            cov_total.save()
+            # Generate the coverage reports
+            report_output_total = StringIO()
+            try:
+                cov_total.report(show_missing=True, file=report_output_total)
+                cov_total.html_report(directory=os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage'))
+            except coverage.exceptions.CoverageException as e:
+                logger.warning(f"Coverage report failure (total tests) for problem {problem_id}: {e}")
 
-        # Capture the coverage reports
-        total_coverage_report = report_output_total.getvalue()
-        cov_total.erase()
+            # Capture the coverage reports
+            total_coverage_report = report_output_total.getvalue()
+            cov_total.erase()
 
-    # Set up coverages for first five tests
-    cov_five = coverage.Coverage(concurrency='thread', data_suffix=True)
-    cov_five.start()
-    try:
-        # Suppress stdout during test execution
-        old_stdout = sys.stdout
-        sys.stdout = StdoutCapture()
+        # Set up coverages for first five tests
+        cov_five = coverage.Coverage(concurrency='thread', data_suffix=True)
+        cov_five.start()
         try:
-            runpy.run_path(os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage', 'first_five_coverage.py'))
+            # Suppress stdout during test execution
+            old_stdout = sys.stdout
+            sys.stdout = StdoutCapture()
+            try:
+                runpy.run_path(os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage', 'first_five_coverage.py'))
+            finally:
+                sys.stdout = old_stdout
+        except (AssertionError, Exception):
+            logger.warning(
+                f"Coverage test failure (first five tests) for problem {problem_id}:\n{traceback.format_exc()}"
+            )
         finally:
-            sys.stdout = old_stdout
-    except (AssertionError, Exception):
-        logger.warning(
-            f"Coverage test failure (first five tests) for problem {problem_id}:\n{traceback.format_exc()}"
-        )
-    finally:
-        cov_five.stop()
-        cov_five.save()
-        # Generate the coverage reports
-        report_output_first_five = StringIO()
-        try:
-            cov_five.report(show_missing=True, file=report_output_first_five)
-            cov_five.html_report(directory=os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage'))
-        except coverage.exceptions.CoverageException as e:
-            logger.warning(f"Coverage report failure (first five tests) for problem {problem_id}: {e}")
+            cov_five.stop()
+            cov_five.save()
+            # Generate the coverage reports
+            report_output_first_five = StringIO()
+            try:
+                cov_five.report(show_missing=True, file=report_output_first_five)
+                cov_five.html_report(directory=os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage'))
+            except coverage.exceptions.CoverageException as e:
+                logger.warning(f"Coverage report failure (first five tests) for problem {problem_id}: {e}")
 
-        # Capture the coverage reports
-        first_five_coverage_report = report_output_first_five.getvalue()
-        cov_five.erase()
+            # Capture the coverage reports
+            first_five_coverage_report = report_output_first_five.getvalue()
+            cov_five.erase()
 
     return first_five_coverage_report, total_coverage_report
 
