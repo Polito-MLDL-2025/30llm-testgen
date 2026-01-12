@@ -18,6 +18,7 @@ from llm30.pipeline.QAagent.utils.logging import (
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
+from llm30.pipeline.QAagent.agents.merger_agent import merge_tests_concat, merge_tests_concat_enhanced, merge_tests_llm, merge_plans_concat
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 
@@ -46,26 +47,67 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
         logger.error(f'Error generating tests: {e}')
         raise
 
-def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_generator_prompt, log_folder, logger):
+def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_generator_prompt, log_folder, logger, merge_strategy="concat", merger_prompt_path=None):
     num_input_tokens = 0
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
     logger.info(f'Starting QA Agent pipeline for problem ID {problem_id}')
 
     # generate natural language pseudocode from problem["prompt"]
-    plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name, logger)
-    num_input_tokens += plan_input_tokens
-    num_output_tokens += plan_output_tokens
+    plan = []
+    for i in range(len(code_architect_prompt)):
+        p, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt[i], model_name, logger)
+        plan.append(p)
+        num_input_tokens += plan_input_tokens
+        num_output_tokens += plan_output_tokens
 
+    # generate tests
+    logger.info(f'Generating tests for problem ID {problem_id}')
+    generated_tests = []
     try:
-        generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan, test_generator_prompt, model_name, logger)
-        num_input_tokens += test_input_tokens
-        num_output_tokens += test_output_tokens
+        for i in range(len(plan)):
+            tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan[i], test_generator_prompt, model_name, logger)
+            generated_tests.append(tests)
+            num_input_tokens += test_input_tokens
+            num_output_tokens += test_output_tokens
     except Exception:
         return 0, 0, 0, 0, 0
 
+    # Merge plans and tests according to the specified strategy
+    if merge_strategy == "concat":
+        # Concatenate all test sets and plans
+        merged_tests = merge_tests_concat(generated_tests)
+        merged_plan = merge_plans_concat(plan)
+        logger.info(f'Merged tests and plans using concat strategy')
+    elif merge_strategy == "concat-enhanced":
+        # Concatenate with syntax validation and deduplication
+        merged_tests = merge_tests_concat_enhanced(generated_tests, problem_name, logger)
+        merged_plan = merge_plans_concat(plan)
+        logger.info(f'Merged tests and plans using concat-enhanced strategy')
+    elif merge_strategy == "llm":
+        # Use LLM to intelligently merge test sets
+        # For plans, concatenate them to provide full context to the test merger
+        merged_plan = merge_plans_concat(plan)
+        if merger_prompt_path is None:
+            logger.error("Merger prompt path not provided for LLM merge strategy")
+            # Fallback to concat
+            merged_tests = merge_tests_concat(generated_tests)
+        else:
+            # Pass the merged plan (all plans concatenated) to provide full context
+            merged_tests, merge_input_tokens, merge_output_tokens = merge_tests_llm(
+                generated_tests, problem_name, merged_plan, merger_prompt_path, model_name, logger
+            )
+            num_input_tokens += merge_input_tokens
+            num_output_tokens += merge_output_tokens
+            logger.info(f'Merged tests using LLM strategy')
+    else:
+        # Default to concat
+        merged_tests = merge_tests_concat(generated_tests)
+        merged_plan = merge_plans_concat(plan)
+        logger.warning(f'Unknown merge strategy: {merge_strategy}, defaulting to concat')
+
     # log plan/pseudocode and tests
-    write_plan_and_tests_qa(log_folder, problem_id, plan, generated_tests)
+    write_plan_and_tests_qa(log_folder, problem_id, merged_plan, merged_tests)
 
     # check the code coverage of the generated tests
     logger.info(f'Checking code coverage for problem ID {problem_id}')
@@ -77,21 +119,11 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     )
 
     # get coverage reports
-    first_five_coverage_report, total_coverage_report = get_coverage(
-        canonical_solution,
-        generated_tests,
-        problem_id,
-        log_folder
-    )
+    first_five_coverage_report, total_coverage_report = get_coverage(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], merged_tests, problem_id, log_folder)
 
     # Calculate generated tests accuracy on the canonical solution. # passes / total tests
     problem_folder = os.path.join(log_folder, f'problem_{problem_id}')
-    accuracy, test_results = get_accuracy(
-        canonical_solution,
-        generated_tests,
-        problem_folder,
-        problem_id
-    )
+    accuracy, test_results = get_accuracy(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], merged_tests, problem_folder, problem_id)
 
     # Extract and log test coverage
     first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
@@ -102,10 +134,10 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     return first_five_coverage, total_coverage, accuracy, num_input_tokens, num_output_tokens
 
 
-def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger):
+def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger, merge_strategy="concat", merger_prompt_path=None):
     try:
         curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = qaAgent(
-            problem, dataset, model, code_architect_prompt, test_generator_prompt, log_folder, logger
+            problem, dataset, model, code_architect_prompt, test_generator_prompt, log_folder, logger, merge_strategy, merger_prompt_path
         )
         return problem["task_id"], curr_num_input_tokens, curr_num_output_tokens, curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage
     except Exception as e:
@@ -120,7 +152,7 @@ if __name__ == "__main__":
     # Setup
     model = args.model
     dataset = args.dataset
-    log_folder = create_log_folder(dataset=dataset, model=model)
+    log_folder = create_log_folder(dataset=dataset, model=model, prefix='QAagent_merge')
     logger = setup_logger(log_folder)
 
     print(f"\n{'='*60}")
@@ -136,16 +168,29 @@ if __name__ == "__main__":
     # Load prompts and problems
     prompt_paths = {
         "humaneval": {
-            "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt.txt"),
+            "code_architect": [
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_1.txt"),
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_2.txt"),
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
+            "test_generator_guided": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_guided.txt"),
+            "merger": os.path.join(pipeline_dir, "prompts", "v1", "merger_llm_humaneval_prompt.txt"),
         },
         "mbpp": {
             "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt"),
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_mbpp_prompt.txt"),
+            "merger": None,  # MBPP doesn't have a merger prompt yet
         }
     }
     code_architect_prompt = prompt_paths[args.dataset]["code_architect"]
-    test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
+    
+    # Select test generator prompt based on generator argument
+    if args.generator == "guided":
+        test_generator_prompt = prompt_paths[args.dataset].get("test_generator_guided", prompt_paths[args.dataset]["test_generator"])
+    else:
+        test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
+    
+    merger_prompt_path = prompt_paths[args.dataset].get("merger", None)
 
     # Load dataset
     dataset_map = {
@@ -192,6 +237,8 @@ if __name__ == "__main__":
                 code_architect_prompt,
                 test_generator_prompt,
                 logger,
+                args.merge_strategy,
+                merger_prompt_path,
             ): i
             for i in range(start_index, end_index)
         }

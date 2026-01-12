@@ -51,6 +51,18 @@ def parse_args():
         default=2,
         help="Number of worker threads to use (default: 2)."
     )
+    parser.add_argument(
+        "--merge-strategy",
+        choices=["concat", "concat-enhanced", "llm"],
+        default="concat",
+        help="Strategy to merge test sets: 'concat' (concatenate all, default), 'concat-enhanced' (concat with syntax validation and deduplication), or 'llm' (use LLM to merge intelligently)."
+    )
+    parser.add_argument(
+        "--generator",
+        choices=["basic", "guided"],
+        default="basic",
+        help="Type of test generator to use: 'basic' (default) or 'guided' (uses guided prompting)."
+    )
     return parser.parse_args()
 
 def update_total_stats(result, total_stats):
