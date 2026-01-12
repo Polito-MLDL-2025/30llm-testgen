@@ -7,8 +7,8 @@
 - Error conditions (if applicable)
 
 **Critical Rules**:
-- Threshold: `<` means strictly less. `[1.5,1.4]` threshold=0.1 -> distance=0.1 -> 0.1<0.1=False (edge case always False)
-- Nesting depth: count peak open parens, not pairs. `'((()))'`->depth 3 (trace: 0→1→2→3→2→1→0), `'(())'`->depth 2
+- Threshold: `<` means strictly less. `[1.5,1.4]` threshold=0.1 → distance=0.1 → 0.1<0.1=False (edge case always False)
+- Nesting depth: count peak open parens, not pairs. `'((()))'`→depth 3 (trace: 0→1→2→3→2→1→0), `'(())'`→depth 2
 - Float precision: NEVER `==` with decimals. Use `abs(a-b)<epsilon` or `round()`. `truncate(4.999)==0.999` fails due to precision
 - Negative product: even count→positive. 2 negatives: `(-1)*(-2)=2`, 4 negatives: `(-1)*(-2)*(-3)*(-4)=24`
 - Substring: ANY position in string, not just start. `'date'` contains `'a'` (position 1), `'banana'` contains `'a'` (positions 1,3,5)
@@ -38,12 +38,10 @@
 Your test cases should be thorough and ensure the code's robustness and reliability.
 
 **Code Formatting**:
-Return only test cases in a single Python code block. Use only assert statements and call the function name from the prompt (do not use "check"). No extra prose, imports, or helper functions.
-```python
-assert function_name(input1) == expected_output1, "Test Case 1 Name and Description"
-assert function_name(input2) == expected_output2, "Test Case 2 Name and Description"
 ```
-Please, strictly follow the format above. Don't forget to use ``` to wrap the test cases.
+assert check(input1) == expected_output1, "Test Case 1 Name and Description"
+assert check(input2) == expected_output2, "Test Case 2 Name and Description"
+```
 
 # For example:
 
