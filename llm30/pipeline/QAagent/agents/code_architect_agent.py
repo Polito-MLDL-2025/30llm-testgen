@@ -7,15 +7,14 @@ def architect_code(problem, prompt_path, model):
         architect_prompt = f2.read()
         problem_prompt = problem["prompt"]
 
-        full_code_architect_prompt = f"""
-        {architect_prompt}
+        full_code_architect_prompt = f"""{architect_prompt}
 
-        ## Prompt 3:
-        ```
-        {problem_prompt}
-        ```
-        ## Completion 3:
-        """
+## Prompt:
+```
+{problem_prompt}
+```
+## Completion:
+"""
         messages = [{"role": "system", "content": "You are a software programmer."},
                     {"role": "user", "content": full_code_architect_prompt}]
         try:

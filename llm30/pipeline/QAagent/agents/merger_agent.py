@@ -179,23 +179,22 @@ def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
     for i, tests in enumerate(valid_test_sets, 1):
         test_sets_str += f"\n## Test Set {i}:\n```python\n{tests}\n```\n"
     
-    full_merger_prompt = (
-        f"{merger_prompt}\n"
-        f"\n"
-        f"## Problem Prompt:\n"
-        f"```\n"
-        f"{problem_name['prompt']}\n"
-        f"```\n"
-        f"\n"
-        f"## Plan:\n"
-        f"```\n"
-        f"{plan}\n"
-        f"```\n"
-        f"\n"
-        f"{test_sets_str}\n"
-        f"\n"
-        f"## Merged Test Set:"
-    )
+    full_merger_prompt = f"""{merger_prompt}
+
+## Problem Prompt:
+```
+{problem_name['prompt']}
+```
+
+## Plan:
+```
+{plan}
+```
+
+{test_sets_str}
+
+## Merged Test Set:
+"""
     
     messages = [
         {"role": "system", "content": "You are a software programmer."},
