@@ -8,13 +8,14 @@ def generate_test_code(problem, problem_id, prompt_path, model, logger):
 
         full_test_generator_prompt = f"""
         {test_generator_prompt}
+---
 
-        ## Prompt 3:
-        ```
-        {problem}
-        ```
+## Prompt:
+```
+{problem}
+```
 
-        ## Completion 3:
+## Completion:
         """
         messages = [{"role": "system", "content": "You are a software programmer."},
                     {"role": "user", "content": full_test_generator_prompt}]
