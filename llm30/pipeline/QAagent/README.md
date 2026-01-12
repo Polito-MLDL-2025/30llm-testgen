@@ -2,36 +2,48 @@
 
 This folder contains the implementation of two distinct agent-based approaches for automatic test generation and evaluation: **Collaborative Pattern** and **Competitive Pattern**. Both approaches leverage multiple agent pipelines ("code architect" + "test generator" pairs), but differ in how their outputs are combined and evaluated.
 
+## Test Generator Prompt Types
+
+- **Basic Prompt:** The test generator agent receives only the function header, the comment describing the function’s goal, and the generated pseudocode. This approach allows the LLM to generate tests based on minimal context.
+- **Guided Prompt:** The test generator agent receives, in addition to the basic information, a set of explicit rules and instructions designed to guide the LLM in producing more correct and robust tests. The guided prompt helps cover edge cases and avoid common mistakes.
+
 ## 1. Collaborative Pattern
 
-In the collaborative approach, all three agent pipelines are run independently on each problem. Each pipeline consists of a code architect agent (which generates a plan/pseudocode) and a test generator agent (which generates tests based on the plan). After all three pipelines have produced their outputs, their generated tests are **merged** into a single, unified test suite for the problem.
+In the collaborative approach, all three agent pipelines are run independently on each problem. Each pipeline consists of a code architect agent (which generates a plan/pseudocode) and a test generator agent (which generates tests based on the plan, using either a basic or guided prompt). After all three pipelines have produced their outputs, their generated tests are **merged** into a single, unified test suite for the problem.
+
+### Merge Strategies (Collaborative Pattern)
+
+After all agent pipelines have generated their test suites, a merger agent combines them into a single, unified test suite. Three merging strategies are available:
+1. **Concatenation:** All tests are concatenated, filtering out only None or empty entries.
+2. **Enhanced Concatenation:** Tests are concatenated and further filtered to remove syntax errors, duplicate tests (using AST analysis), and tests with incorrect function names.
+3. **LLM-based Merge:** Tests are concatenated and then refined by an LLM, which removes duplicates, conflicting tests, syntax errors, and failing tests, using the function header, goal, and generated plans as context.
+
+Plans are always concatenated after removing None or empty ones.
 
 - **Workflow:**
   1. For each problem, run all three (code architect + test generator) pipelines.
   2. Collect the generated tests from each pipeline.
-  3. Merge the tests into a single comprehensive test suite (e.g., by union, deduplication, or other merging logic).
+  3. Merge the tests into a single comprehensive test suite using one of the merge strategies above.
   4. Evaluate the merged test suite for coverage and accuracy against the canonical solution.
-  5. Log and save all intermediate and final results for analysis.
-
 - **Rationale:**
-  - The collaborative approach aims to maximize test coverage and robustness by leveraging the diversity of multiple agent pipelines.
+  - The collaborative approach aims to maximize test coverage and robustness by leveraging the diversity of multiple agent pipelines and merging strategies.
   - Merging tests can uncover more edge cases and improve the overall quality of the generated test suite.
   - This approach is especially useful when individual pipelines have complementary strengths.
 
 ## 2. Competitive Pattern
 
-In the competitive approach, all three agent pipelines are also run independently on each problem. However, instead of merging their outputs, each pipeline's results are **evaluated separately**. The pipeline that achieves the best evaluation metric (e.g., highest coverage, then highest accuracy as a tiebreaker) is selected as the winner for that problem.
+In the competitive approach, all three agent pipelines are also run independently on each problem. Each pipeline consists of a code architect agent and a test generator agent, which can use either a basic or guided prompt. However, instead of merging their outputs, each pipeline's results are **evaluated separately**. The pipeline that achieves the best evaluation metric (e.g., highest coverage, then highest accuracy as a tiebreaker) is selected as the winner for that problem.
 
 - **Workflow:**
   1. For each problem, run all three (code architect + test generator) pipelines.
   2. Evaluate each pipeline's generated tests independently.
-  3. Select the pipeline with the best metrics (coverage, accuracy, etc.) as the solution for that problem.
-  4. Log and save all results for each pipeline, as well as the selected best.
+  3. Log and save all results for each pipeline, as well as the selected best.
+  4. The final test suite and plan are those from the agent with the highest coverage (and accuracy as a tiebreaker).
 
 - **Rationale:**
-  - The competitive approach is designed to identify the single best-performing pipeline for each problem.
+  - The competitive approach is designed to identify the single best-performing pipeline for each problem, leveraging the diversity of prompt strategies.
   - It is useful for benchmarking, ablation studies, or when you want to select the most effective agent configuration.
-  - This approach highlights the strengths and weaknesses of each pipeline in isolation.
+  - This approach highlights the strengths and weaknesses of each pipeline in isolation and ensures that only the most effective test suite is retained.
 
 ## Key Differences
 
