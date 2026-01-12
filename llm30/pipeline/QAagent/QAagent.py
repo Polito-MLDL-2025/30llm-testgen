@@ -11,7 +11,7 @@ from llm30.pipeline.QAagent.utils.utils import read_problems, add_plan, add_cano
 from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create_log_folder, setup_logger, log_results, write_summary, write_details
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
-from llm30.pipeline.QAagent.agents.merger_agent import merge_tests_concat, merge_tests_llm, merge_plans_concat
+from llm30.pipeline.QAagent.agents.merger_agent import merge_tests_concat, merge_tests_concat_enhanced, merge_tests_llm, merge_plans_concat
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 
@@ -66,6 +66,11 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         merged_tests = merge_tests_concat(generated_tests)
         merged_plan = merge_plans_concat(plan)
         logger.info(f'Merged tests and plans using concat strategy')
+    elif merge_strategy == "concat-enhanced":
+        # Concatenate with syntax validation and deduplication
+        merged_tests = merge_tests_concat_enhanced(generated_tests, problem_name, logger)
+        merged_plan = merge_plans_concat(plan)
+        logger.info(f'Merged tests and plans using concat-enhanced strategy')
     elif merge_strategy == "llm":
         # Use LLM to intelligently merge test sets
         # For plans, concatenate them to provide full context to the test merger

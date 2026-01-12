@@ -1,4 +1,5 @@
 import time
+import ast
 from llm30.pipeline.QAagent.utils.processing import process_block
 from llm30.pipeline.QAagent.tools.call_and_handle import call_and_handle
 
@@ -54,6 +55,90 @@ def merge_tests_concat(test_sets):
     # Concatenate with newline separator
     merged_tests = "\n".join(valid_test_sets)
     return merged_tests
+
+def merge_tests_concat_enhanced(test_sets, problem_name, logger):
+    """
+    Merge multiple test sets by concatenating them, then filter out:
+    1. Tests with syntax errors
+    2. True duplicate tests (using AST-based comparison)
+    
+    This provides better quality than simple concat without LLM overhead.
+    
+    Args:
+        test_sets (list): List of test set strings to merge
+        problem_name (dict): Problem information including entry_point
+        logger: Logger instance for logging
+        
+    Returns:
+        str: Enhanced concatenated test sets (validated and deduplicated)
+    """
+    if not test_sets:
+        return ""
+    
+    # Filter out empty or None test sets
+    valid_test_sets = [tests for tests in test_sets if tests and tests.strip()]
+    
+    if not valid_test_sets:
+        return ""
+    
+    # Stage 1: Syntax validation
+    valid_tests = []
+    syntax_errors = 0
+    
+    for tests in valid_test_sets:
+        for line in tests.split('\n'):
+            line = line.strip()
+            if not line or not line.startswith('assert'):
+                continue
+            
+            try:
+                # Attempt to compile the line to check for syntax errors
+                compile(line, '<string>', 'exec')
+                valid_tests.append(line)
+            except SyntaxError:
+                syntax_errors += 1
+                logger.debug(f"Filtered out test with syntax error: {line}")
+    
+    if syntax_errors > 0:
+        logger.info(f"Filtered out {syntax_errors} tests with syntax errors")
+    
+    # Stage 2: AST-based deduplication
+    seen_ast = set()
+    unique_tests = []
+    duplicates = 0
+    
+    for test in valid_tests:
+        try:
+            # Parse the test and create a canonical AST representation
+            ast_tree = ast.parse(test)
+            ast_repr = ast.dump(ast_tree)
+            
+            if ast_repr not in seen_ast:
+                seen_ast.add(ast_repr)
+                unique_tests.append(test)
+            else:
+                duplicates += 1
+                logger.debug(f"Filtered out duplicate test: {test}")
+        except Exception as e:
+            # If AST parsing fails (shouldn't happen after syntax check), filter the test
+            logger.warning(f"AST parsing failed for test: {test}. Error: {e}")
+    
+    if duplicates > 0:
+        logger.info(f"Filtered out {duplicates} duplicate tests (AST-based)")
+    
+    # Stage 3: Prioritize tests with correct function name
+    correct_name = problem_name.get('entry_point', '')
+    if correct_name:
+        # Sort so tests with correct function name come first
+        prioritized = sorted(unique_tests, 
+                           key=lambda t: correct_name in t,
+                           reverse=True)
+    else:
+        prioritized = unique_tests
+    
+    logger.info(f"Enhanced concat: {len(valid_tests)} valid → {len(unique_tests)} unique tests")
+    
+    return '\n'.join(prioritized)
 
 def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
     """

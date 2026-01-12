@@ -53,9 +53,9 @@ def parse_args():
     )
     parser.add_argument(
         "--merge-strategy",
-        choices=["concat", "llm"],
+        choices=["concat", "concat-enhanced", "llm"],
         default="concat",
-        help="Strategy to merge test sets: 'concat' (concatenate all, default) or 'llm' (use LLM to merge intelligently)."
+        help="Strategy to merge test sets: 'concat' (concatenate all, default), 'concat-enhanced' (concat with syntax validation and deduplication), or 'llm' (use LLM to merge intelligently)."
     )
     return parser.parse_args()
 
