@@ -126,19 +126,20 @@ def merge_tests_concat_enhanced(test_sets, problem_name, logger):
     if duplicates > 0:
         logger.info(f"Filtered out {duplicates} duplicate tests (AST-based)")
     
-    # Stage 3: Prioritize tests with correct function name
+    # Stage 3: Filter out tests with incorrect function name
     correct_name = problem_name.get('entry_point', '')
     if correct_name:
-        # Sort so tests with correct function name come first
-        prioritized = sorted(unique_tests, 
-                           key=lambda t: correct_name in t,
-                           reverse=True)
+        filtered_tests = [test for test in unique_tests if correct_name in test]
+        wrong_name_count = len(unique_tests) - len(filtered_tests)
+        if wrong_name_count > 0:
+            logger.info(f"Filtered out {wrong_name_count} tests with incorrect function name")
+        final_tests = filtered_tests
     else:
-        prioritized = unique_tests
+        final_tests = unique_tests
     
-    logger.info(f"Enhanced concat: {len(valid_tests)} valid → {len(unique_tests)} unique tests")
-    
-    return '\n'.join(prioritized)
+    logger.info(f"Enhanced concat: {len(valid_tests)} valid → {len(unique_tests)} unique → {len(final_tests)} final tests")
+
+    return '\n'.join(final_tests)
 
 def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
     """
