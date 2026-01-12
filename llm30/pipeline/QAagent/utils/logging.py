@@ -36,7 +36,7 @@ def write_tests_single_agent(log_folder, problem_id, tests):
         f.write(tests)
 
 
-def create_log_folder(dataset=None, model=None):
+def create_log_folder(dataset=None, model=None,prefix='QAagent'):
     """
     Creates a timestamped folder for logs with dataset and model info.
 
@@ -50,7 +50,7 @@ def create_log_folder(dataset=None, model=None):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     # Build folder name with context
-    folder_parts = ['multi_agent']
+    folder_parts = [prefix]
     if dataset:
         folder_parts.append(dataset)
     if model:
@@ -67,7 +67,7 @@ def create_log_folder(dataset=None, model=None):
 
 def setup_logger(log_folder):
     """Sets up the logger to log into the timestamped folder."""
-    logger = logging.getLogger('SingleAgentLogger')
+    logger = logging.getLogger('MultiAgentLogger')
     logger.setLevel(logging.INFO)
 
     file_handler = logging.FileHandler(os.path.join(log_folder, 'pipeline.log'))
