@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 
 client = OpenAI(base_url=os.getenv("OPENAI_URL_BASE"),api_key=os.getenv("OPENAI_API_KEY"))
 
-def call_and_handle(messages, model, timeout=60):
+def call_and_handle(messages, model, timeout=180):
     """
     Call the OpenAI API and handle the response.
 
     Args:
         messages: List of message dictionaries
         model: The model to use for generation
-        timeout: Request timeout in seconds (default: 60)
+        timeout: Request timeout in seconds (default: 180)
 
     Returns:
         tuple: (completion, input_token_count, output_token_count)
