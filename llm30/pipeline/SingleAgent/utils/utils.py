@@ -54,6 +54,13 @@ def parse_args():
         help="Number of worker threads to use (default: 2)."
     )
 
+    parser.add_argument(
+        "--generator-prompt",
+        choices=["default", "original"],
+        default="default",
+        help="Choose the generator prompt to use (default or original)."
+    )
+
     return parser.parse_args()
 
 

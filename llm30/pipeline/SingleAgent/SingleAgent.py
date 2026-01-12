@@ -130,17 +130,22 @@ if __name__ == "__main__":
     print(f"{'='*60}")
     print(f"Model: {model}")
     print(f"Dataset: {dataset}")
+    print(f"Generator prompt: {args.generator_prompt}")
     print(f"Log folder: {log_folder}")
     print(f"Max workers: {args.max_workers}")
 
     pipeline_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     # Load prompts
-    prompt_paths = {
-        "humaneval": os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_humaneval_prompt.txt"),
-        "mbpp": os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_mbpp_prompt.txt"),
-    }
-    test_generator_prompt = prompt_paths[args.dataset]
+    if args.dataset == "humaneval":
+        if args.generator_prompt == "default":
+            test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_humaneval_prompt.txt")
+        elif args.generator_prompt == "original":
+            test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_humaneval_prompt_original.txt")
+    elif args.dataset == "mbpp":
+        test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_mbpp_prompt.txt")
+    else:
+        raise ValueError(f"Unknown dataset: {args.dataset}")
 
     # Load dataset
     dataset_map = {

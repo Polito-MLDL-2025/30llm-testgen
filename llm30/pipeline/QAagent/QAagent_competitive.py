@@ -163,6 +163,7 @@ if __name__ == "__main__":
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_2.txt"),
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
+            "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_original.txt"),
         },
         "mbpp": {
             "code_architect": [os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt")],
@@ -171,6 +172,8 @@ if __name__ == "__main__":
     }
     code_architect_prompts = prompt_paths[args.dataset]["code_architect"]
     test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
+    if args.generator_prompt == "original":
+        test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
     dataset_map = {
         "humaneval": os.path.join(pipeline_dir, "datasets", "humaneval", "problems.jsonl"),
         "mbpp": os.path.join(pipeline_dir, "datasets", "mbpp", "problems.jsonl")

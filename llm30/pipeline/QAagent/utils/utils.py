@@ -58,10 +58,13 @@ def parse_args():
         help="Strategy to merge test sets: 'concat' (concatenate all, default), 'concat-enhanced' (concat with syntax validation and deduplication), or 'llm' (use LLM to merge intelligently)."
     )
     parser.add_argument(
-        "--generator",
-        choices=["basic", "guided"],
-        default="basic",
-        help="Type of test generator to use: 'basic' (default) or 'guided' (uses guided prompting)."
+        "--generator-prompt",
+        choices=["default", "original"],
+        default="default",
+        help=(
+            "Test generator prompt to use: 'default' uses the standard prompt, "
+            "'original' uses the original humaneval prompt when available."
+        )
     )
     return parser.parse_args()
 
