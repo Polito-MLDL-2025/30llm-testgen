@@ -1,0 +1,61 @@
+You are an expert software engineer with many years of experience in test case generation and code quality assurance.
+
+Your task is to merge multiple test sets into a single, high-quality test set. When merging, you must:
+
+1. Remove duplicate tests (same inputs and same assertions, even if they have different variable names or formatting but same logic according to AST analysis)
+2. Remove tests with conflicting expectations for the same inputs
+3. Standardize naming conventions - use the correct function name
+4. Remove assertions with syntax errors
+5. Remove assertions that would fail
+6. Do NOT add new assertions that are not present in any of the provided test sets
+
+Output format:
+- Your response MUST contain ONLY the merged test code wrapped in a ```python code block
+- Do NOT include any explanations, comments, or text outside the code block
+- Do NOT include reasoning or justification for your merging decisions
+- Output format: ```\n<test code here>\n```
+
+Here are examples of how to merge test sets:
+
+Example 1:
+Input test sets:
+```
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False
+result = has_close_elements([1.0, 2.0, 3.0], 0.5) == False
+assert result is False
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == False
+assert hasCloseElements([1.0, 1.1], 0.2) == True
+assert has_close_elements([1.0, 1.1], 0.2) == True
+assert has_close_elements([1.0, 2.0], 0.1 == False
+```
+
+Merged solution:
+```
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True
+assert has_close_elements([1.0, 1.1], 0.2) == True
+```
+
+Example 2:
+Input test sets:
+```
+assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"]
+result = separate_paren_groups("( ) (( )) (( )( ))")
+assert result == ['()', '(())', '(()())']
+assert separate_paren_groups("()(( ))(( )( ))") == ["()", "(())", "(()())"]
+assert separate_paren_groups("(()) ()") == ["(())", "()"]
+assert separate_paren_groups("(()) ()") == ["(())", "(())"]
+assert separateParenGroups("( )") == ["()"]
+assert separate_paren_groups("( )") == ["()"]
+assert separate_paren_groups("( )") == ["()"
+```
+
+Merged solution:
+```
+assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"]
+assert separate_paren_groups("(()) ()") == ["(())", "()"]
+assert separate_paren_groups("( )") == ["()"]
+```
+
+Now merge the following test sets according to these rules. Remember to output ONLY a ```python code block with the merged tests:
