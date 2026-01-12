@@ -8,7 +8,14 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from llm30.pipeline.QAagent.utils.utils import read_problems, add_plan, add_canonical_solution, parse_args, update_total_stats
-from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create_log_folder, setup_logger, log_results, write_summary, write_details
+from llm30.pipeline.QAagent.utils.logging import (
+    write_plan_and_tests_qa,
+    create_log_folder,
+    setup_logger,
+    log_results,
+    write_summary,
+    write_details,
+)
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
 from llm30.pipeline.QAagent.agents.merger_agent import merge_tests_concat, merge_tests_concat_enhanced, merge_tests_llm, merge_plans_concat
@@ -19,7 +26,10 @@ from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 def generate_plan(problem_name, code_architect_prompt, model_name, logger):
     logger.info(f'Generating pseudocode for problem ID {problem_name["task_id"]}')
     plan, plan_input_tokens, plan_output_tokens = architect_code(problem_name, code_architect_prompt, model_name)
-    logger.info(f'Generated plan: {plan}\nInput tokens: {plan_input_tokens}, Output tokens: {plan_output_tokens}')
+    logger.info(
+        f'Generated plan ({len(plan.splitlines())} lines). '
+        f'Tokens - Input: {plan_input_tokens}, Output: {plan_output_tokens}'
+    )
     return plan, plan_input_tokens, plan_output_tokens
 
 def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger):
@@ -28,7 +38,10 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
         tests, test_input_tokens, test_output_tokens, _ = generate_test_code(
             add_plan(problem_name, plan), problem_name["task_id"], test_generator_prompt, model_name, logger
         )
-        logger.info(f'Generated tests: {tests}\nInput tokens: {test_input_tokens}, Output tokens: {test_output_tokens}')
+        logger.info(
+            f'Generated {len(tests.splitlines())} lines of tests. '
+            f'Tokens - Input: {test_input_tokens}, Output: {test_output_tokens}'
+        )
         return tests, test_input_tokens, test_output_tokens
     except Exception as e:
         logger.error(f'Error generating tests: {e}')
@@ -38,7 +51,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     num_input_tokens = 0
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
-    logger.info(f'Starting problem ID {problem_id}')
+    logger.info(f'Starting QA Agent pipeline for problem ID {problem_id}')
 
     # generate natural language pseudocode from problem["prompt"]
     plan = []
@@ -99,6 +112,12 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     # check the code coverage of the generated tests
     logger.info(f'Checking code coverage for problem ID {problem_id}')
 
+    # Prepare canonical solution (avoid repeated calculation)
+    canonical_solution = (
+        add_canonical_solution(problem_name) if dataset == "humaneval"
+        else problem_name["canonical_solution"]
+    )
+
     # get coverage reports
     first_five_coverage_report, total_coverage_report = get_coverage(add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"], merged_tests, problem_id, log_folder)
 
@@ -133,8 +152,16 @@ if __name__ == "__main__":
     # Setup
     model = args.model
     dataset = args.dataset
-    log_folder = create_log_folder()
+    log_folder = create_log_folder(dataset=dataset, model=model)
     logger = setup_logger(log_folder)
+
+    print(f"\n{'='*60}")
+    print("QA Agent Test Case Generation Pipeline")
+    print(f"{'='*60}")
+    print(f"Model: {model}")
+    print(f"Dataset: {dataset}")
+    print(f"Log folder: {log_folder}")
+    print(f"Max workers: {args.max_workers}")
 
     pipeline_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -171,7 +198,7 @@ if __name__ == "__main__":
         "mbpp": os.path.join(pipeline_dir, "datasets", "mbpp", "problems.jsonl")
     }
     problems = read_problems(dataset_map[args.dataset])
-    print(f"Loaded problems from: {dataset_map[args.dataset]}")
+    print(f"Loaded {len(problems)} problems from: {dataset_map[args.dataset]}")
 
     # Initialize statistics
     total_stats = {
@@ -193,6 +220,10 @@ if __name__ == "__main__":
         end_index = min(end_index, start_index + args.max_tasks)
     if args.max_workers <= 0:
         raise ValueError("max_workers must be positive.")
+    total_problems = end_index - start_index
+    print(f"Processing {total_problems} problems (index {start_index} to {end_index-1})")
+    print(f"{'='*60}\n")
+
     # Create a ThreadPoolExecutor
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
         # Submit all problems to the executor
@@ -211,13 +242,35 @@ if __name__ == "__main__":
             ): i
             for i in range(start_index, end_index)
         }
+        completed = 0
         for future in concurrent.futures.as_completed(future_to_problem):
             problem_index = future_to_problem[future]
+            completed += 1
             try:
-                result= future.result()
+                result = future.result()
                 if result:
+                    task_id, input_tokens, output_tokens, first_five_cov, total_cov, accuracy = result
                     update_total_stats(result, total_stats)
                     write_summary(log_folder, total_stats)
                     write_details(log_folder, result)
+                    print(f"[{completed}/{total_problems}] {task_id:<20} | "
+                          f"Accuracy: {accuracy:>5.1f}% | "
+                          f"Coverage: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"Tokens: {input_tokens}+{output_tokens}")
             except Exception as e:
                 logger.error(f"Error processing problem: {e}")
+                print(f"[{completed}/{total_problems}] Error at index {problem_index}")
+
+    # Final summary
+    print(f"\n{'='*60}")
+    print("QA Agent Pipeline Completed!")
+    print(f"{'='*60}")
+    if total_stats['evaluated'] > 0:
+        print(f"Problems evaluated: {total_stats['evaluated']}")
+        print(f"Average accuracy: {total_stats['accuracy'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five coverage: {total_stats['first_five_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total coverage: {total_stats['coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Total input tokens: {total_stats['input_tokens']}")
+        print(f"Total output tokens: {total_stats['output_tokens']}")
+    print(f"Results saved to: {log_folder}")
+    print(f"{'='*60}\n")

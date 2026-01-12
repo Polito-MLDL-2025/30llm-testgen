@@ -6,7 +6,9 @@ def generate_test_code(problem, problem_id, prompt_path, model, logger):
     with open(prompt_path, "r") as f:
         test_generator_prompt = f.read()
 
-        full_test_generator_prompt = f"""{test_generator_prompt}
+        full_test_generator_prompt = f"""
+        {test_generator_prompt}
+---
 
 ## Prompt:
 ```
@@ -14,7 +16,7 @@ def generate_test_code(problem, problem_id, prompt_path, model, logger):
 ```
 
 ## Completion:
-"""
+        """
         messages = [{"role": "system", "content": "You are a software programmer."},
                     {"role": "user", "content": full_test_generator_prompt}]
         try:
