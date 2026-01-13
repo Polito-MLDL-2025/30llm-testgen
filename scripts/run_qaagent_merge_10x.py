@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import csv
-import subprocess
+import multiprocessing
+import queue as queue_module
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -41,12 +43,10 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
     }
 
 
-def build_command(
+def build_argv(
     args: argparse.Namespace, generator_prompt: str, merge_strategy: str
 ) -> list[str]:
     return [
-        sys.executable,
-        "llm30/pipeline/QAagent/QAagent_merge.py",
         "--dataset",
         args.dataset,
         "--model",
@@ -62,7 +62,89 @@ def build_command(
     ]
 
 
-def main() -> int:
+def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> None:
+    import traceback
+    from llm30.pipeline.QAagent import QAagent_merge
+
+    class QueueWriter:
+        def __init__(self, queue: multiprocessing.Queue) -> None:
+            self.queue = queue
+
+        def write(self, data: str) -> None:
+            if data:
+                self.queue.put(data)
+
+        def flush(self) -> None:
+            return None
+
+    sys.stdout = QueueWriter(output_queue)
+    sys.stderr = QueueWriter(output_queue)
+
+    try:
+        exit_code = QAagent_merge.main(argv)
+        if exit_code is None:
+            exit_code = 0
+    except SystemExit as exc:
+        exit_code = exc.code if isinstance(exc.code, int) else 1
+    except Exception:
+        output_queue.put(traceback.format_exc())
+        exit_code = 1
+
+    raise SystemExit(exit_code)
+
+
+def run_agent_main(argv: list[str], timeout_seconds: int = 300) -> None:
+    attempt = 0
+    while True:
+        attempt += 1
+        print(f"Starting attempt {attempt}...", flush=True)
+        output_queue: multiprocessing.Queue = multiprocessing.Queue()
+        process = multiprocessing.Process(
+            target=_run_agent_main,
+            args=(argv, output_queue),
+        )
+        process.start()
+
+        last_output = time.monotonic()
+
+        while True:
+            try:
+                chunk = output_queue.get(timeout=1)
+            except queue_module.Empty:
+                chunk = None
+
+            if chunk:
+                last_output = time.monotonic()
+                print(chunk, end="", flush=True)
+
+            if not process.is_alive():
+                process.join()
+                while True:
+                    try:
+                        chunk = output_queue.get_nowait()
+                    except queue_module.Empty:
+                        break
+                    if chunk:
+                        print(chunk, end="", flush=True)
+                exit_code = process.exitcode or 0
+                if exit_code == 0:
+                    return
+                raise RuntimeError(f"QAagent merge exited with code {exit_code}")
+
+            if time.monotonic() - last_output > timeout_seconds:
+                print(
+                    f"No output for {timeout_seconds} seconds. Restarting run.",
+                    flush=True,
+                )
+                process.terminate()
+                process.join(timeout=10)
+                if process.is_alive():
+                    process.kill()
+                    process.join(timeout=5)
+                break
+
+
+def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Run QAagent merge sequentially and aggregate summary stats into CSVs."
     )
@@ -77,7 +159,7 @@ def main() -> int:
         default=None,
         help="Base name for output CSVs (suffixes _<prompt>_<strategy>.csv are added).",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.runs <= 0:
         raise ValueError("runs must be positive.")
@@ -97,21 +179,22 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     generator_prompts = ("default", "original")
-    merge_strategies = ("concat", "concat-enhanced", "llm")
+    # merge_strategies = ("concat", "concat-enhanced", "llm")
+    merge_strategies = ["llm"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:
-            command = build_command(args, generator_prompt, merge_strategy)
+            argv = build_argv(args, generator_prompt, merge_strategy)
             rows: list[dict[str, str | int | float]] = []
 
             for run_idx in range(1, args.runs + 1):
                 before_logs = list_log_dirs(logs_root)
                 print(
                     f"[{generator_prompt}/{merge_strategy}] Run {run_idx}/{args.runs}: "
-                    f"{' '.join(command)}",
+                    f"QAagent_merge.main {' '.join(argv)}",
                     flush=True,
                 )
-                subprocess.run(command, check=True)
+                run_agent_main(argv)
 
                 after_logs = list_log_dirs(logs_root)
                 new_logs = sorted(after_logs - before_logs, key=lambda path: path.stat().st_mtime)

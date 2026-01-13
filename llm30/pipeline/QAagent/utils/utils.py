@@ -24,7 +24,7 @@ def add_canonical_solution(problem_name):
 {problem_name["canonical_solution"]}
 """
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Specify dataset and model.")
 
     parser.add_argument(
@@ -66,7 +66,7 @@ def parse_args():
             "'original' uses the original humaneval prompt when available."
         )
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 def update_total_stats(result, total_stats):
     problem_id, cur_num_input_tokens, cur_num_output_tokens, cur_first_five_coverage, cur_total_coverage, cur_accuracy = result

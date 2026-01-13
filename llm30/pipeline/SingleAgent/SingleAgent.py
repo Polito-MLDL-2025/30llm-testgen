@@ -116,8 +116,8 @@ def process_problem(problem, model, dataset, log_folder, test_generator_prompt, 
         return task_id, 0, 0, 0.0, 0.0, 0.0
 
 
-if __name__ == "__main__":
-    args = parse_args()
+def main(argv=None) -> int:
+    args = parse_args(argv)
 
     # Setup
     model = args.model
@@ -231,3 +231,8 @@ if __name__ == "__main__":
         print(f"Total output tokens: {total_stats['output_tokens']}")
     print(f"Results saved to: {log_folder}")
     print(f"{'='*60}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -11,8 +11,7 @@ This script orchestrates running all the 10x experiment scripts in sequence:
 Each script runs multiple configurations with multiple runs per configuration.
 """
 import argparse
-import subprocess
-import sys
+import importlib.util
 from datetime import datetime
 from pathlib import Path
 
@@ -42,10 +41,8 @@ def run_script(
         print(f"❌ Script not found: {script_path}")
         return False
     
-    # Build command
-    command = [
-        sys.executable,
-        str(script_path),
+    # Build argv for script main
+    argv = [
         "--runs", str(args.runs),
         "--dataset", args.dataset,
         "--model", args.model,
@@ -58,28 +55,35 @@ def run_script(
         # Add timestamp prefix to distinguish between different run_all executions
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         predefined = f"{timestamp}_{args.predefine_name}_{script_name.replace('.py', '')}"
-        command.extend(["--predefine-name", predefined])
+        argv.extend(["--predefine-name", predefined])
     
     print_banner(f"[{script_number}/{total_scripts}] Running: {script_name}", "=")
-    print(f"Command: {' '.join(command)}")
+    print(f"Args: {' '.join(argv)}")
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
     
     start_time = datetime.now()
     
     try:
-        result = subprocess.run(command, check=True)
+        module_name = f"_run_{script_path.stem}"
+        spec = importlib.util.spec_from_file_location(module_name, script_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Unable to load module from {script_path}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        exit_code = module.main(argv)
+        if exit_code:
+            raise RuntimeError(f"{script_name} exited with code {exit_code}")
+
         duration = datetime.now() - start_time
-        
         print_banner(f"✅ {script_name} completed successfully!", "-")
         print(f"Duration: {duration}")
         print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         return True
-        
-    except subprocess.CalledProcessError as e:
+
+    except Exception as e:
         duration = datetime.now() - start_time
-        
         print_banner(f"❌ {script_name} failed with error!", "-")
-        print(f"Error code: {e.returncode}")
+        print(f"Error: {e}")
         print(f"Duration: {duration}")
         print(f"Failed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         return False

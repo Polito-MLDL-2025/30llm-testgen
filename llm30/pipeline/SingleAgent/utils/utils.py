@@ -23,7 +23,7 @@ def add_canonical_solution(problem_name):
 """
 
 
-def parse_args():
+def parse_args(argv=None):
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Single Agent Test Case Generation - Specify dataset and model.")
 
@@ -61,7 +61,7 @@ def parse_args():
         help="Choose the generator prompt to use (default or original)."
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def update_total_stats(result, total_stats):
