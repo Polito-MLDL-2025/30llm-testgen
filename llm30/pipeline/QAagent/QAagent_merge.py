@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 import concurrent.futures
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -23,57 +24,85 @@ from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 
 
-def generate_plan(problem_name, code_architect_prompt, model_name, logger):
-    logger.info(f'Generating pseudocode for problem ID {problem_name["task_id"]}')
+def generate_plan(problem_name, code_architect_prompt, model_name, logger, agent_index=None):
+    problem_id = problem_name["task_id"]
+    agent_label = f" [agent {agent_index}]" if agent_index is not None else ""
+    logger.info(f'Generating pseudocode for problem ID {problem_id}{agent_label}')
     plan, plan_input_tokens, plan_output_tokens = architect_code(problem_name, code_architect_prompt, model_name)
     logger.info(
-        f'Generated plan ({len(plan.splitlines())} lines). '
+        f'Generated plan{agent_label} ({len(plan.splitlines())} lines). '
         f'Tokens - Input: {plan_input_tokens}, Output: {plan_output_tokens}'
     )
     return plan, plan_input_tokens, plan_output_tokens
 
-def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger):
-    logger.info(f'Generating tests for problem ID {problem_name["task_id"]}')
+def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger, agent_index=None):
+    problem_id = problem_name["task_id"]
+    agent_label = f" [agent {agent_index}]" if agent_index is not None else ""
+    logger.info(f'Generating tests for problem ID {problem_id}{agent_label}')
     try:
         tests, test_input_tokens, test_output_tokens, _ = generate_test_code(
             add_plan(problem_name, plan), problem_name["task_id"], test_generator_prompt, model_name, logger
         )
         logger.info(
-            f'Generated {len(tests.splitlines())} lines of tests. '
+            f'Generated {len(tests.splitlines())} lines of tests{agent_label}. '
             f'Tokens - Input: {test_input_tokens}, Output: {test_output_tokens}'
         )
         return tests, test_input_tokens, test_output_tokens
     except Exception as e:
-        logger.error(f'Error generating tests: {e}')
+        logger.error(f'Error generating tests{agent_label}: {e}')
         raise
 
 def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_generator_prompt, log_folder, logger, merge_strategy="concat", merger_prompt_path=None):
     num_input_tokens = 0
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
-    logger.info(f'Starting QA Agent pipeline for problem ID {problem_id}')
+    logger.info(
+        f'Starting QA Agent merge pipeline for problem ID {problem_id} '
+        f'using strategy {merge_strategy}'
+    )
 
     # generate natural language pseudocode from problem["prompt"]
     plan = []
     for i in range(len(code_architect_prompt)):
-        p, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt[i], model_name, logger)
+        logger.info(f"Step: plan generation start for agent {i + 1}/{len(code_architect_prompt)}")
+        p, plan_input_tokens, plan_output_tokens = generate_plan(
+            problem_name,
+            code_architect_prompt[i],
+            model_name,
+            logger,
+            agent_index=i + 1,
+        )
         plan.append(p)
         num_input_tokens += plan_input_tokens
         num_output_tokens += plan_output_tokens
+        logger.info(f"Step: plan generation complete for agent {i + 1}/{len(code_architect_prompt)}")
 
     # generate tests
-    logger.info(f'Generating tests for problem ID {problem_id}')
+    logger.info(f'Step: test generation start for problem ID {problem_id}')
     generated_tests = []
     try:
         for i in range(len(plan)):
-            tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan[i], test_generator_prompt, model_name, logger)
+            logger.info(f"Step: test generation start for agent {i + 1}/{len(plan)}")
+            tests, test_input_tokens, test_output_tokens = generate_tests(
+                problem_name,
+                plan[i],
+                test_generator_prompt,
+                model_name,
+                logger,
+                agent_index=i + 1,
+            )
             generated_tests.append(tests)
             num_input_tokens += test_input_tokens
             num_output_tokens += test_output_tokens
+            logger.info(f"Step: test generation complete for agent {i + 1}/{len(plan)}")
     except Exception:
         return 0, 0, 0, 0, 0
 
     # Merge plans and tests according to the specified strategy
+    logger.info(
+        f"Step: merge start for problem ID {problem_id} "
+        f"({len(generated_tests)} test sets)"
+    )
     if merge_strategy == "concat":
         # Concatenate all test sets and plans
         merged_tests = merge_tests_concat(generated_tests)
@@ -105,12 +134,17 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         merged_tests = merge_tests_concat(generated_tests)
         merged_plan = merge_plans_concat(plan)
         logger.warning(f'Unknown merge strategy: {merge_strategy}, defaulting to concat')
+    logger.info(
+        f"Step: merge complete for problem ID {problem_id} "
+        f"({len(merged_tests.splitlines())} test lines)"
+    )
 
     # log plan/pseudocode and tests
     write_plan_and_tests_qa(log_folder, problem_id, merged_plan, merged_tests)
+    logger.info(f"Step: wrote merged artifacts for problem ID {problem_id}")
 
     # check the code coverage of the generated tests
-    logger.info(f'Checking code coverage for problem ID {problem_id}')
+    logger.info(f'Step: coverage start for problem ID {problem_id}')
 
     # Prepare canonical solution (avoid repeated calculation)
     canonical_solution = (
@@ -127,9 +161,15 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
 
     # Extract and log test coverage
     first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
+    logger.info(
+        f"Step: metrics for problem ID {problem_id} - "
+        f"Accuracy: {accuracy:.2f}% | "
+        f"Coverage: {first_five_coverage:.2f}%→{total_coverage:.2f}%"
+    )
 
     # Log results
     log_results(problem_folder, first_five_coverage_report, total_coverage_report, test_results, logger, num_input_tokens, num_output_tokens)
+    logger.info(f"Completed problem ID {problem_id}")
 
     return first_five_coverage, total_coverage, accuracy, num_input_tokens, num_output_tokens
 
@@ -154,6 +194,15 @@ def main(argv=None) -> int:
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model, prefix='QAagent_merge')
     logger = setup_logger(log_folder)
+    if not any(
+        isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+        for handler in logger.handlers
+    ):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
 
     print(f"\n{'='*60}")
     print("QA Agent Test Case Generation Pipeline")
