@@ -53,9 +53,14 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--merge-strategy",
-        choices=["concat", "concat-enhanced", "llm"],
+        choices=["concat", "concat-enhanced", "llm", "accuracy"],
         default="concat",
-        help="Strategy to merge test sets: 'concat' (concatenate all, default), 'concat-enhanced' (concat with syntax validation and deduplication), or 'llm' (use LLM to merge intelligently)."
+        help=(
+            "Strategy to merge test sets: 'concat' (concatenate all, default), "
+            "'concat-enhanced' (concat with syntax validation and deduplication), "
+            "'llm' (use LLM to merge intelligently), or "
+            "'accuracy' (filter to tests that pass the canonical solution)."
+        )
     )
     parser.add_argument(
         "--generator-prompt",

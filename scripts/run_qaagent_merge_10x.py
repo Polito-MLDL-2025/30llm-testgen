@@ -44,7 +44,7 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
 
 
 def build_argv(
-    args: argparse.Namespace, generator_prompt: str, merge_strategy: str
+        args: argparse.Namespace, generator_prompt: str, merge_strategy: str
 ) -> list[str]:
     return [
         "--dataset",
@@ -179,8 +179,9 @@ def main(argv=None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     generator_prompts = ("default", "original")
-    merge_strategies = ("concat", "concat-enhanced", "llm")
-    # merge_strategies = ["llm"]
+    merge_strategies = ("accuracy", "concat")
+    # merge_strategies = ("concat", "concat-enhanced", "llm", "accuracy")
+    # merge_strategies = ["accuracy"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:
@@ -218,7 +219,7 @@ def main(argv=None) -> int:
                         **stats,
                     }
                 )
-                
+
                 # Print summary after each run
                 print(f"  → Run {run_idx} complete: "
                       f"Accuracy={stats['accuracy']:.2f}%, "
@@ -260,16 +261,16 @@ def main(argv=None) -> int:
                 writer.writerows(rows)
 
             # Print summary for this configuration
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"[{generator_prompt}/{merge_strategy}] Configuration Complete - Summary of {args.runs} runs:")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             print(f"Average Accuracy:          {avg_accuracy:.2f}%")
             print(f"Average First-Five Cov:    {avg_first_five:.2f}%")
             print(f"Average Total Coverage:    {avg_coverage:.2f}%")
             print(f"Total Input Tokens:        {sum_input_tokens:,}")
             print(f"Total Output Tokens:       {sum_output_tokens:,}")
             print(f"CSV saved to: {output_path}")
-            print(f"{'='*60}\n")
+            print(f"{'=' * 60}\n")
     return 0
 
 
