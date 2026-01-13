@@ -206,8 +206,8 @@ def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
         merged_tests = process_block(merged_tests_response.choices[0].message.content)
         
         logger.info(f"Task ID: {problem_name['task_id']}: Merged tests using LLM")
-        logger.info(f"Tests: {test_sets_str}")
-        logger.info(f"Merged tests: {merged_tests}")
+        logger.debug(f"Tests: {test_sets_str}")
+        logger.debug(f"Merged tests: {merged_tests}")
         logger.info(f"Input tokens: {input_token_count}, Output tokens: {output_token_count}")
         
         return merged_tests, input_token_count, output_token_count
