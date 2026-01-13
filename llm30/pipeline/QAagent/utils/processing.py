@@ -1,27 +1,31 @@
+import textwrap
+
+
 def process_block(text_block):
     """
-    Extract code block from markdown-formatted text.
+    Extract the first fenced code block from markdown-formatted text.
 
     Args:
-        text_block: The text containing code block
+        text_block: The text containing a code block.
 
     Returns:
-        str: Extracted code without markdown formatting
+        str: Extracted code without markdown formatting.
     """
-    if f"```python" in text_block:
-        text_block = text_block[text_block.find(f"```python") + len(f"```python"):]
-        text_block = text_block[:text_block.find("```")]
-    elif f"```" in text_block:
-        text_block = text_block[text_block.find(f"```") + len(f"```"):]
-        text_block = text_block[:text_block.find("```")]
+    if not text_block:
+        return ""
+
+    start = text_block.find("```")
+    if start != -1:
+        header_end = text_block.find("\n", start + 3)
+        if header_end == -1:
+            header_end = start + 3
+        end = text_block.find("```", header_end + 1)
+        if end == -1:
+            block = text_block[header_end + 1 :]
+        else:
+            block = text_block[header_end + 1 : end]
     else:
         # Fall back to raw content when no code fence is present.
-        pass
+        block = text_block
 
-    # Keep only assert statements to reduce accidental prose or partial outputs.
-    lines = [
-        line.strip()
-        for line in text_block.splitlines()
-        if line.strip().startswith("assert")
-    ]
-    return "\n".join(lines)
+    return textwrap.dedent(block).strip()
