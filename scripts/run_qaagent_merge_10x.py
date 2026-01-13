@@ -179,8 +179,8 @@ def main(argv=None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     generator_prompts = ("default", "original")
-    # merge_strategies = ("concat", "concat-enhanced", "llm")
-    merge_strategies = ["llm"]
+    merge_strategies = ("concat", "concat-enhanced", "llm")
+    # merge_strategies = ["llm"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:
