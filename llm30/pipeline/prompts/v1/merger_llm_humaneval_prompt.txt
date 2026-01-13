@@ -5,9 +5,10 @@ Your task is to merge multiple test sets into a single, high-quality test set. W
 1. Remove duplicate tests (same inputs and same assertions, even if they have different variable names or formatting but same logic according to AST analysis)
 2. Remove tests with conflicting expectations for the same inputs
 3. Standardize naming conventions - use the correct function name
-4. Remove assertions with syntax errors
+4. Fix or remove tests with syntax errors
 5. Remove assertions that would fail
 6. Do NOT add new assertions that are not present in any of the provided test sets
+7. Ensure deterministic behavior and maximize existing coverage without redundancy
 
 Output format:
 - Your response MUST contain ONLY the merged test code wrapped in a ```python code block
@@ -15,9 +16,42 @@ Output format:
 - Do NOT include reasoning or justification for your merging decisions
 - Output format: ```\n<test code here>\n```
 
+---
 Here are examples of how to merge test sets:
 
 Example 1:
+
+## Prompt 1:
+
+```python
+from typing import List
+
+
+def has_close_elements(numbers: List[float], threshold: float) -> bool:
+    """ Check if in given list of numbers, are any two numbers closer to each other than
+    given threshold.
+    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+    False
+    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+    True
+    """
+
+```
+
+Entry Point: `has_close_elements`
+
+Reference Implementation:
+```python
+    for idx, elem in enumerate(numbers):
+    for idx2, elem2 in enumerate(numbers):
+        if idx != idx2:
+            distance = abs(elem - elem2)
+            if distance < threshold:
+                return True
+
+    return False
+```
+
 Input test sets:
 ```
 assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False
@@ -38,6 +72,47 @@ assert has_close_elements([1.0, 1.1], 0.2) == True
 ```
 
 Example 2:
+
+## Prompt 2:
+```python
+from typing import List
+
+
+def separate_paren_groups(paren_string: str) -> List[str]:
+    """ Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
+    separate those group into separate strings and return the list of those.
+    Separate groups are balanced (each open brace is properly closed) and not nested within each other
+    Ignore any spaces in the input string.
+    >>> separate_paren_groups('( ) (( )) (( )( ))')
+    ['()', '(())', '(()())']
+    """
+
+```
+``
+
+Entry Point: `separate_paren_groups`
+
+Reference Implementation:
+```python
+    result = []
+    current_string = []
+    current_depth = 0
+
+    for c in paren_string:
+        if c == '(':
+            current_depth += 1
+            current_string.append(c)
+        elif c == ')':
+            current_depth -= 1
+            current_string.append(c)
+
+            if current_depth == 0:
+                result.append(''.join(current_string))
+                current_string.clear()
+
+    return result
+```
+
 Input test sets:
 ```
 assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"]
@@ -57,5 +132,5 @@ assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"]
 assert separate_paren_groups("(()) ()") == ["(())", "()"]
 assert separate_paren_groups("( )") == ["()"]
 ```
-
+---
 Now merge the following test sets according to these rules. Remember to output ONLY a ```python code block with the merged tests:

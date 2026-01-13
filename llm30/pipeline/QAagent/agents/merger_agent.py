@@ -178,12 +178,22 @@ def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
     test_sets_str = ""
     for i, tests in enumerate(valid_test_sets, 1):
         test_sets_str += f"\n## Test Set {i}:\n```python\n{tests}\n```\n"
-    
+
+    entry_point = problem_name.get("entry_point", "")
+    reference_impl = problem_name.get("canonical_solution", "")
+
     full_merger_prompt = f"""{merger_prompt}
 
 ## Problem Prompt:
 ```
 {problem_name['prompt']}
+```
+
+Entry Point: `{entry_point}`
+
+Reference Implementation:
+```python
+{reference_impl}
 ```
 
 ## Plan:
@@ -195,7 +205,10 @@ def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
 
 ## Merged Test Set:
 """
-    
+    print("--"*100)
+    print("Full merger prompt constructed.")
+    print(full_merger_prompt)
+    print("--"*100)
     messages = [
         {"role": "system", "content": "You are a software programmer."},
         {"role": "user", "content": full_merger_prompt}
