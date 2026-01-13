@@ -24,7 +24,7 @@ def add_canonical_solution(problem_name):
 {problem_name["canonical_solution"]}
 """
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Specify dataset and model.")
 
     parser.add_argument(
@@ -53,9 +53,14 @@ def parse_args():
     )
     parser.add_argument(
         "--merge-strategy",
-        choices=["concat", "concat-enhanced", "llm"],
+        choices=["concat", "concat-enhanced", "llm", "accuracy"],
         default="concat",
-        help="Strategy to merge test sets: 'concat' (concatenate all, default), 'concat-enhanced' (concat with syntax validation and deduplication), or 'llm' (use LLM to merge intelligently)."
+        help=(
+            "Strategy to merge test sets: 'concat' (concatenate all, default), "
+            "'concat-enhanced' (concat with syntax validation and deduplication), "
+            "'llm' (use LLM to merge intelligently), or "
+            "'accuracy' (filter to tests that pass the canonical solution)."
+        )
     )
     parser.add_argument(
         "--generator-prompt",
@@ -66,7 +71,7 @@ def parse_args():
             "'original' uses the original humaneval prompt when available."
         )
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 def update_total_stats(result, total_stats):
     problem_id, cur_num_input_tokens, cur_num_output_tokens, cur_first_five_coverage, cur_total_coverage, cur_accuracy = result

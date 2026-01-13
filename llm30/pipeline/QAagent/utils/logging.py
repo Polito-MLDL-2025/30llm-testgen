@@ -70,6 +70,11 @@ def setup_logger(log_folder):
     logger = logging.getLogger('MultiAgentLogger')
     logger.setLevel(logging.INFO)
 
+    if logger.handlers:
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
+
     file_handler = logging.FileHandler(os.path.join(log_folder, 'pipeline.log'))
     file_handler.setLevel(logging.INFO)
 

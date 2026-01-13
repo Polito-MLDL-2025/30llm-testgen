@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import csv
-import subprocess
+import multiprocessing
+import queue as queue_module
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -41,10 +43,8 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
     }
 
 
-def build_command(args: argparse.Namespace, generator_prompt: str) -> list[str]:
+def build_argv(args: argparse.Namespace, generator_prompt: str) -> list[str]:
     return [
-        sys.executable,
-        "llm30/pipeline/SingleAgent/SingleAgent.py",
         "--dataset",
         args.dataset,
         "--model",
@@ -58,7 +58,89 @@ def build_command(args: argparse.Namespace, generator_prompt: str) -> list[str]:
     ]
 
 
-def main() -> int:
+def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> None:
+    import traceback
+    from llm30.pipeline.SingleAgent import SingleAgent
+
+    class QueueWriter:
+        def __init__(self, queue: multiprocessing.Queue) -> None:
+            self.queue = queue
+
+        def write(self, data: str) -> None:
+            if data:
+                self.queue.put(data)
+
+        def flush(self) -> None:
+            return None
+
+    sys.stdout = QueueWriter(output_queue)
+    sys.stderr = QueueWriter(output_queue)
+
+    try:
+        exit_code = SingleAgent.main(argv)
+        if exit_code is None:
+            exit_code = 0
+    except SystemExit as exc:
+        exit_code = exc.code if isinstance(exc.code, int) else 1
+    except Exception:
+        output_queue.put(traceback.format_exc())
+        exit_code = 1
+
+    raise SystemExit(exit_code)
+
+
+def run_agent_main(argv: list[str], timeout_seconds: int = 180) -> None:
+    attempt = 0
+    while True:
+        attempt += 1
+        print(f"Starting attempt {attempt}...", flush=True)
+        output_queue: multiprocessing.Queue = multiprocessing.Queue()
+        process = multiprocessing.Process(
+            target=_run_agent_main,
+            args=(argv, output_queue),
+        )
+        process.start()
+
+        last_output = time.monotonic()
+
+        while True:
+            try:
+                chunk = output_queue.get(timeout=1)
+            except queue_module.Empty:
+                chunk = None
+
+            if chunk:
+                last_output = time.monotonic()
+                print(chunk, end="", flush=True)
+
+            if not process.is_alive():
+                process.join()
+                while True:
+                    try:
+                        chunk = output_queue.get_nowait()
+                    except queue_module.Empty:
+                        break
+                    if chunk:
+                        print(chunk, end="", flush=True)
+                exit_code = process.exitcode or 0
+                if exit_code == 0:
+                    return
+                raise RuntimeError(f"SingleAgent exited with code {exit_code}")
+
+            if time.monotonic() - last_output > timeout_seconds:
+                print(
+                    f"No output for {timeout_seconds} seconds. Restarting run.",
+                    flush=True,
+                )
+                process.terminate()
+                process.join(timeout=10)
+                if process.is_alive():
+                    process.kill()
+                    process.join(timeout=5)
+                break
+
+
+def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Run SingleAgent sequentially and aggregate summary stats into a CSV."
     )
@@ -73,7 +155,7 @@ def main() -> int:
         default=None,
         help="Base name for output CSVs (suffixes _default.csv/_original.csv are added).",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.runs <= 0:
         raise ValueError("runs must be positive.")
@@ -93,16 +175,16 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for generator_prompt in ("default", "original"):
-        command = build_command(args, generator_prompt)
+        argv = build_argv(args, generator_prompt)
         rows: list[dict[str, str | int | float]] = []
 
         for run_idx in range(1, args.runs + 1):
             before_logs = list_log_dirs(logs_root)
             print(
-                f"[{generator_prompt}] Run {run_idx}/{args.runs}: {' '.join(command)}",
+                f"[{generator_prompt}] Run {run_idx}/{args.runs}: SingleAgent.main {' '.join(argv)}",
                 flush=True,
             )
-            subprocess.run(command, check=True)
+            run_agent_main(argv)
 
             after_logs = list_log_dirs(logs_root)
             new_logs = sorted(after_logs - before_logs, key=lambda path: path.stat().st_mtime)

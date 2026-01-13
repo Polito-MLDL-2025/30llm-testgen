@@ -1,7 +1,17 @@
 import os
+import time
 import logging
 
-from openai import OpenAI
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
+try:
+    from openai import OpenAI, APITimeoutError
+except ImportError:  # pragma: no cover - older openai versions
+    from openai import OpenAI
+    APITimeoutError = None
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,6 +19,16 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 client = OpenAI(base_url=os.getenv("OPENAI_URL_BASE"), api_key=os.getenv("OPENAI_API_KEY"))
+
+def _is_timeout_error(exc: Exception) -> bool:
+    if APITimeoutError and isinstance(exc, APITimeoutError):
+        return True
+    if httpx is not None and isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, TimeoutError):
+        return True
+    message = str(exc).lower()
+    return "timed out" in message or "timeout" in message
 
 
 def call_and_handle(messages, model, temperature=0, top_p = 1.0,timeout=180):
@@ -30,14 +50,31 @@ def call_and_handle(messages, model, temperature=0, top_p = 1.0,timeout=180):
     """
     logger.debug("Calling model: %s", model)
 
-    # Call the model to get the completion
-    completion = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        timeout=timeout,
-        top_p=top_p,
-    )
+    completion = None
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            completion = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                timeout=timeout,
+                top_p=top_p,
+            )
+            break
+        except Exception as exc:
+            if _is_timeout_error(exc) and attempt < max_attempts:
+                logger.warning(
+                    "Request timed out (attempt %s/%s). Retrying in 60 seconds.",
+                    attempt,
+                    max_attempts,
+                )
+                time.sleep(60)
+                continue
+            raise
+
+    if completion is None:
+        raise RuntimeError("OpenAI completion failed after retries.")
 
     input_token_count = completion.usage.prompt_tokens
     output_token_count = completion.usage.completion_tokens

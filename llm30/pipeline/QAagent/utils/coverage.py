@@ -106,10 +106,18 @@ from io import StringIO
 import runpy
 from llm30.pipeline.QAagent.tools.parse_coverage_html import extract_success_percentage
 
+
+def _get_pipeline_logger():
+    for name in ("SingleAgentLogger", "MultiAgentLogger"):
+        logger = logging.getLogger(name)
+        if logger.handlers:
+            return logger
+    return logging.getLogger(__name__)
+
 _COVERAGE_LOCK = threading.Lock()
 
 def get_coverage(code_string, test_string, problem_id, log_folder):
-    logger = logging.getLogger('SingleAgentLogger')
+    logger = _get_pipeline_logger()
 
     # write code string to a file in the problem_id folder called temp_problem_id.py
     os.makedirs(os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage'), exist_ok=True)
@@ -252,7 +260,7 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
 
 def extract_coverage_percentages(problem_folder, problem_name):
     """Extracts coverage percentages from HTML reports."""
-    logger = logging.getLogger('SingleAgentLogger')
+    logger = _get_pipeline_logger()
     current_first_five_coverage_percentage = 0.0
     current_total_coverage_percentage = 0.0
 
