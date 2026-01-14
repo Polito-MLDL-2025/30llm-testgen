@@ -1,37 +1,65 @@
 # QAagent: Collaborative and Competitive Architectures
 
-This folder contains the implementation of two distinct agent-based approaches for automatic test generation and evaluation: **Collaborative Pattern** and **Competitive Pattern**. Both approaches leverage multiple agent pipelines ("code architect" + "test generator" pairs), but differ in how their outputs are combined and evaluated.
+
+This folder contains the implementation of two distinct agent-based approaches for automatic test generation and evaluation: **Collaborative Pattern** and **Competitive Pattern**. Both approaches leverage three different agent pipelines ("code architect" + "test generator" pairs), but differ in how their outputs are combined and evaluated.
+
+## Code Architect Agents
+
+For each problem, three different code architect agents are used to generate a plan/pseudocode, each characterized by a different prompting strategy:
+
+- **Chain-of-Thought (CoT):** The agent is prompted to break down the problem step by step, explicitly reasoning about the solution before writing the pseudocode.
+- **ReAct:** The agent first reasons about the problem (Thought), then acts by producing the pseudocode (Act), following the ReAct paradigm.
+- **Zero-shot:** The agent generates the pseudocode directly, without explicit intermediate reasoning steps.
+
+## Test Generator Agents
+
+For each code architect, a test generator agent produces tests based on the generated plan. There are two main prompt variants for the test generator:
+- **Original:** The test generator agent receives only the function header, the comment describing the function’s goal, and the generated pseudocode. This approach allows the LLM to generate tests based on minimal context.
+
+- **Guided (Default):** Uses a more structured and detailed prompt to guide the generation of comprehensive and robust test cases.
+The test generator agent receives, in addition to the basic information, a set of explicit rules and instructions designed to guide the LLM in producing more correct and robust tests. The guided prompt helps cover edge cases and avoid common mistakes.
 
 ## 1. Collaborative Pattern
 
-In the collaborative approach, all three agent pipelines are run independently on each problem. Each pipeline consists of a code architect agent (which generates a plan/pseudocode) and a test generator agent (which generates tests based on the plan). After all three pipelines have produced their outputs, their generated tests are **merged** into a single, unified test suite for the problem.
+In the collaborative approach, all three (code architect + test generator) pipelines are run independently on each problem. After all three pipelines have produced their outputs, their generated tests are **merged** into a single, unified test suite for the problem.
 
 - **Workflow:**
   1. For each problem, run all three (code architect + test generator) pipelines.
   2. Collect the generated tests from each pipeline.
-  3. Merge the tests into a single comprehensive test suite (e.g., by union, deduplication, or other merging logic).
+  3. Merge the tests into a single comprehensive test suite using one of several merging strategies (see below).
   4. Evaluate the merged test suite for coverage and accuracy against the canonical solution.
   5. Log and save all intermediate and final results for analysis.
+
+
+- **Merging Approaches:**
+  - **concat:** All tests are concatenated, filtering out only None or empty entries.
+  - **concat-enhanced:** Tests are concatenated and further filtered to remove syntax errors, duplicate tests (using AST analysis), and tests with incorrect function names.
+  - **accuracy:** Only tests that pass the canonical solution are kept. (in this case the accuracy should be maximized to 100%)
+  - [**llm (exluded because not perform well):** Uses an LLM to merge and deduplicate tests intelligently.
+  In particular tests are concatenated and then refined by an LLM, which removes duplicates, conflicting tests, syntax errors, and failing tests, using the function header, goal, and generated plans as context.]
 
 - **Rationale:**
   - The collaborative approach aims to maximize test coverage and robustness by leveraging the diversity of multiple agent pipelines.
   - Merging tests can uncover more edge cases and improve the overall quality of the generated test suite.
   - This approach is especially useful when individual pipelines have complementary strengths.
+  - The merging strategy can be selected via the `--merge-strategy` argument.
+
 
 ## 2. Competitive Pattern
 
-In the competitive approach, all three agent pipelines are also run independently on each problem. However, instead of merging their outputs, each pipeline's results are **evaluated separately**. The pipeline that achieves the best evaluation metric (e.g., highest coverage, then highest accuracy as a tiebreaker) is selected as the winner for that problem.
+In the competitive approach, all three (code architect + test generator) pipelines are run independently on each problem. However, instead of merging their outputs, each pipeline's results are **evaluated separately**. The pipeline that achieves the best evaluation metric (e.g., highest coverage, then highest accuracy as a tiebreaker) is selected as the winner for that problem.
 
 - **Workflow:**
   1. For each problem, run all three (code architect + test generator) pipelines.
-  2. Evaluate each pipeline's generated tests independently.
+  2. Evaluate each pipeline's generated tests independently (using the same metrics as in the collaborative approach).
   3. Select the pipeline with the best metrics (coverage, accuracy, etc.) as the solution for that problem.
   4. Log and save all results for each pipeline, as well as the selected best.
 
 - **Rationale:**
   - The competitive approach is designed to identify the single best-performing pipeline for each problem.
   - It is useful for benchmarking, ablation studies, or when you want to select the most effective agent configuration.
-  - This approach highlights the strengths and weaknesses of each pipeline in isolation.
+  - This approach highlights the strengths and weaknesses of each pipeline in isolation, and allows for a fair comparison between different prompting strategies and test generator variants.
+
 
 ## Key Differences
 
@@ -42,6 +70,7 @@ In the competitive approach, all three agent pipelines are also run independentl
 | Goal           | Maximize overall coverage      | Find best individual agent |
 | Use Case       | Robustness, completeness       | Benchmarking, selection    |
 
+
 ## Folder Structure
 
 - `QAagent.py`           — Implements the collaborative pattern logic.
@@ -51,6 +80,7 @@ In the competitive approach, all three agent pipelines are also run independentl
 - `utils/`                — Helper functions for logging, coverage, accuracy, etc.
 - `prompts/`              — Prompt templates for each agent and dataset.
 
+
 ## Collaborative vs Competitive: Results Comparison
 
 *This section will be completed once experimental results are available.*
@@ -58,6 +88,7 @@ In the competitive approach, all three agent pipelines are also run independentl
 - Here, we will present a quantitative and qualitative comparison between the collaborative and competitive patterns.
 - Metrics such as coverage, accuracy, and robustness will be analyzed.
 - Insights and recommendations will be provided based on the observed results.
+
 
 ## Log Directory Structure
 
@@ -106,10 +137,12 @@ logs/
 - The collaborative pipeline saves the merged results for each problem.
 - Summary and log files are provided at the run root for quick overview and debugging.
 
+
 ## Notes
-- Both approaches use the same three agent pipelines for a fair comparison.
+- Both approaches use the same three agent pipelines (Chain-of-Thought, ReAct, Zero-shot) for a fair comparison.
+- Each pipeline can use either the original or guided test generator prompt.
 - All intermediate and final results (plans, tests, metrics) are saved for each problem and pipeline.
-- The collaborative approach assumes a merging strategy is implemented (e.g., union of tests, deduplication, etc.).
+- The collaborative approach allows for different merging strategies (see above). The LLM-based merge is implemented but not recommended due to poor performance.
 - For further details, see the code and docstrings in each script.
 
 ---
