@@ -8,6 +8,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    # Ensure local imports work when running via "python scripts/...".
+    sys.path.insert(0, str(REPO_ROOT))
+
 
 def sanitize_name(value: str) -> str:
     return value.replace("/", "_").replace(":", "_").replace(" ", "_")
@@ -179,9 +184,10 @@ def main(argv=None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     generator_prompts = ("default", "original")
+    # generator_prompts = [ "original"]
     merge_strategies = ("accuracy", "concat")
     # merge_strategies = ("concat", "concat-enhanced", "llm", "accuracy")
-    # merge_strategies = ["accuracy"]
+    # merge_strategies = ["llm"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:

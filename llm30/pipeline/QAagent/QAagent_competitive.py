@@ -236,12 +236,18 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
     problem_id = problem_name["task_id"]
     logger.info(f'Starting Competitive QA Agent pipeline for problem ID {problem_id}')
     agent_results = []
+    total_input_tokens = 0
+    total_output_tokens = 0
     for i, code_architect_prompt in enumerate(code_architect_prompts):
         plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name, logger)
+        total_input_tokens += plan_input_tokens
+        total_output_tokens += plan_output_tokens
         try:
             tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan, test_generator_prompt, model_name, logger)
         except Exception:
             continue
+        total_input_tokens += test_input_tokens
+        total_output_tokens += test_output_tokens
         logger.info(f'Checking code coverage for problem ID {problem_id} (agent {i+1})')
         first_five_coverage_report, total_coverage_report = get_coverage(
             add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"],
@@ -253,8 +259,6 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
             tests, problem_folder, problem_id
         )
         first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
-        total_input_tokens = plan_input_tokens + test_input_tokens
-        total_output_tokens = plan_output_tokens + test_output_tokens
         agent_results.append({
             "plan": plan,
             "tests": tests,
@@ -264,12 +268,12 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
             "total_coverage": total_coverage,
             "accuracy": accuracy,
             "test_results": test_results,
-            "input_tokens": total_input_tokens,
-            "output_tokens": total_output_tokens,
+            "input_tokens": plan_input_tokens + test_input_tokens,
+            "output_tokens": plan_output_tokens + test_output_tokens,
             "agent_index": i
         })
     if not agent_results:
-        return 0, 0, 0, 0, 0
+        return 0, 0, 0, total_input_tokens, total_output_tokens
     # Save all agent results before selecting the best
     save_all_agents_results(log_folder, problem_id, agent_results)
     best_agent = max(agent_results, key=lambda x: (x["total_coverage"], x["accuracy"]))
@@ -280,15 +284,15 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
         best_agent["total_coverage_report"],
         best_agent["test_results"],
         logger,
-        best_agent["input_tokens"],
-        best_agent["output_tokens"]
+        total_input_tokens,
+        total_output_tokens
     )
     return (
         best_agent["first_five_coverage"],
         best_agent["total_coverage"],
         best_agent["accuracy"],
-        best_agent["input_tokens"],
-        best_agent["output_tokens"]
+        total_input_tokens,
+        total_output_tokens
     )
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt, logger):
