@@ -45,7 +45,7 @@ This report summarizes the experimental findings for various LLM-based code gene
 | Single Agent         | Original            |      78.89 |      84.66 |  49,949.10 |
 | Single Agent         | Zero Shot           |      48.66 |      57.15 |  47,511.50 |
 
-### HumanEval - Full Dataset (164 Problems)
+### HumanEval - Full Dataset (164 Problems) (1 Runs)
 
 | Strategy             | Variant             |   Accuracy |   Coverage |     Tokens |
 |:---------------------|:--------------------|-----------:|-----------:|-----------:|
