@@ -3,6 +3,18 @@
 ## Introduction
 This report summarizes the experimental findings for various LLM-based code generation strategies. The experiments were conducted to evaluate the performance of different agentic workflows using the **nvidia/nemotron-3-nano-30b-a3b** model.
 
+### Model Choice
+We selected **nvidia/nemotron-3-nano-30b-a3b** for these experiments because:
+* Using a single fixed model isolates the impact of strategy and prompt changes, making comparisons fairer.
+
+Strengths highlighted in the model card:
+* Open model family with open weights, training data, and recipes.
+* Hybrid MoE architecture (Mamba-2 + attention) with 3.5B active parameters and 30B total parameters, favoring efficiency.
+* Unified reasoning and non-reasoning model with configurable reasoning traces (accuracy vs. direct-answer trade-off).
+* Long-context support: model card notes up to a 1M context size (HF default 256k due to VRAM needs).
+* Fine-tuned for code, math, science, tool calling, instruction following, and structured outputs.
+* Multilingual support (English, German, Spanish, French, Italian, Japanese) and marked as ready for commercial use.
+
 ## Methodology
 
 ### Datasets
