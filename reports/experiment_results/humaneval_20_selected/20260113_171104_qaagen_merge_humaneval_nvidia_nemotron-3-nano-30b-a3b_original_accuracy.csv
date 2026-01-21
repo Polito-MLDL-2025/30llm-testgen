@@ -1,0 +1,12 @@
+run,log_dir,accuracy,first_five_coverage,coverage,input_tokens,output_tokens
+1,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_171104,95.0,89.75,92.0,82247,164769
+2,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_171935,95.0,92.1,92.9,81854,157320
+3,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_172442,90.0,85.85,88.0,81572,144982
+4,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_172912,95.0,90.1,92.0,82292,154978
+5,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_173813,100.0,97.2,100.0,82284,169405
+6,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_174237,90.0,85.2,87.9,78038,151587
+7,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_175536,80.0,76.85,78.0,79081,153115
+8,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_180442,90.0,84.4,87.9,82028,159917
+9,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_180956,95.0,89.65,93.0,81062,156381
+10,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_merge-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260113_181804,80.0,75.2,77.0,74212,139199
+aggregate,,91.0,86.63,88.86999999999999,804670,1551653

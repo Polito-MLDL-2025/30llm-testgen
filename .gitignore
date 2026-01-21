@@ -192,3 +192,5 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 wandb-keys.txt
+temp
+logs

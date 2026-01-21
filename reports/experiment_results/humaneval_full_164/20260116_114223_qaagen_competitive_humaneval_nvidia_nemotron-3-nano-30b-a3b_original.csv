@@ -1,0 +1,3 @@
+run,log_dir,accuracy,first_five_coverage,coverage,input_tokens,output_tokens
+1,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260116_130743,93.17465284197708,95.98170731707317,97.3109756097561,647784,1174294
+aggregate,,93.17465284197708,95.98170731707317,97.3109756097561,647784,1174294

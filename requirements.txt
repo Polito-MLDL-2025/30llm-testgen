@@ -1,5 +1,9 @@
 ipython
 jupyterlab
+openai
+coverage
+beautifulsoup4
+bs4
 loguru
 matplotlib
 mkdocs

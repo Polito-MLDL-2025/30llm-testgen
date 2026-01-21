@@ -1,0 +1,12 @@
+run,log_dir,accuracy,first_five_coverage,coverage,input_tokens,output_tokens
+1,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_000741,99.64285714285714,95.95,100.0,125575,229443
+2,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_001658,99.0,96.3,100.0,125575,229443
+3,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_003315,99.58333333333334,97.2,100.0,124035,193149
+4,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_004307,98.78205128205128,96.6,99.0,124646,197003
+5,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_005025,100.0,97.85,99.0,124168,200204
+6,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_005630,100.0,95.95,100.0,125223,219606
+7,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_010311,95.0,93.05,95.0,125925,228858
+8,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_011336,98.33333333333334,98.3,99.0,124772,209700
+9,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_011820,100.0,96.75,100.0,118734,192233
+10,/home/thanhnv/PycharmProjects/30llm/logs/QAagent_competitive-20260113_012542,99.0,98.2,100.0,118734,201889
+aggregate,,98.93415750915752,96.615,99.2,1237387,2101528

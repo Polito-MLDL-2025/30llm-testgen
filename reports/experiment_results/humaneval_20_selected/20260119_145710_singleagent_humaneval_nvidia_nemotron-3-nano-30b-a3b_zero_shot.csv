@@ -1,0 +1,12 @@
+run,log_dir,accuracy,first_five_coverage,coverage,input_tokens,output_tokens
+1,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_145711,43.13354408749146,51.2,52.0,5295,39971
+2,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_150652,55.81349206349206,60.85,62.0,5489,42192
+3,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_150823,54.03809523809524,62.75,65.0,5489,44869
+4,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_150946,45.379058441558435,51.1,51.55,5489,40022
+5,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_151104,56.65452602952604,66.0,66.45,5489,38683
+6,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_151333,51.576739926739926,57.55,57.55,5489,44551
+7,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_152034,40.86004273504273,47.5,49.0,5489,47209
+8,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_152335,44.89769455690508,52.55,54.0,5489,35845
+9,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_153025,45.241300366300365,51.5,51.95,5489,39572
+10,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260119_153258,48.973232323232324,60.55,62.0,5489,47505
+aggregate,,48.65677257683837,56.154999999999994,57.15,54696,420419
