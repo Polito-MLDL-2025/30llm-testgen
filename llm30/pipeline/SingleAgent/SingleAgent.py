@@ -1,5 +1,9 @@
 import os
 import sys
+import logging
+import multiprocessing
+import queue as queue_module
+import time
 import concurrent.futures
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -15,6 +19,140 @@ from llm30.pipeline.SingleAgent.utils.logging import (
 from llm30.pipeline.SingleAgent.agents.test_generator_agent import generate_test_code
 from llm30.pipeline.SingleAgent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.SingleAgent.utils.accuracy import get_accuracy
+
+
+def _ensure_stream_handler(logger):
+    if not any(
+        isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+        for handler in logger.handlers
+    ):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+
+
+def _single_agent_worker(
+    result_queue,
+    output_queue,
+    problem,
+    dataset,
+    model,
+    test_generator_prompt,
+    log_folder,
+):
+    class QueueWriter:
+        def __init__(self, queue):
+            self.queue = queue
+
+        def write(self, data):
+            if data:
+                self.queue.put(data)
+
+        def flush(self):
+            return None
+
+    sys.stdout = QueueWriter(output_queue)
+    sys.stderr = QueueWriter(output_queue)
+
+    logger = setup_logger(log_folder)
+    _ensure_stream_handler(logger)
+    try:
+        result = singleAgent(problem, dataset, model, test_generator_prompt, log_folder, logger)
+        result_queue.put(("ok", result))
+    except Exception as exc:
+        logger.exception("Worker error for problem %s: %s", problem.get("task_id"), exc)
+        result_queue.put(("error", str(exc)))
+
+
+def _run_single_agent_with_timeout(
+    problem,
+    dataset,
+    model,
+    test_generator_prompt,
+    log_folder,
+    logger,
+    timeout_seconds=180,
+    max_attempts=3,
+):
+    problem_id = problem.get("task_id")
+    ctx = multiprocessing.get_context("spawn")
+    for attempt in range(1, max_attempts + 1):
+        result_queue = ctx.Queue()
+        output_queue = ctx.Queue()
+        process = ctx.Process(
+            target=_single_agent_worker,
+            args=(
+                result_queue,
+                output_queue,
+                problem,
+                dataset,
+                model,
+                test_generator_prompt,
+                log_folder,
+            ),
+        )
+        process.start()
+
+        last_output = time.monotonic()
+        while True:
+            try:
+                chunk = output_queue.get(timeout=1)
+            except queue_module.Empty:
+                chunk = None
+
+            if chunk:
+                last_output = time.monotonic()
+                print(chunk, end="", flush=True)
+
+            if not process.is_alive():
+                process.join()
+                while True:
+                    try:
+                        chunk = output_queue.get_nowait()
+                    except queue_module.Empty:
+                        break
+                    if chunk:
+                        print(chunk, end="", flush=True)
+                try:
+                    status, payload = result_queue.get_nowait()
+                except queue_module.Empty:
+                    logger.warning(
+                        "Problem %s finished without result (attempt %s/%s). Retrying.",
+                        problem_id,
+                        attempt,
+                        max_attempts,
+                    )
+                    break
+                if status == "ok":
+                    return payload
+                logger.error(
+                    "Problem %s failed (attempt %s/%s): %s",
+                    problem_id,
+                    attempt,
+                    max_attempts,
+                    payload,
+                )
+                break
+
+            if time.monotonic() - last_output > timeout_seconds:
+                logger.warning(
+                    "Problem %s had no output for %ss (attempt %s/%s). Restarting.",
+                    problem_id,
+                    timeout_seconds,
+                    attempt,
+                    max_attempts,
+                )
+                process.terminate()
+                process.join(timeout=10)
+                if process.is_alive():
+                    process.kill()
+                    process.join(timeout=5)
+                break
+
+    logger.error("Problem %s failed after %s attempts.", problem_id, max_attempts)
+    return None
 
 
 def singleAgent(problem_name, dataset, model_name, test_generator_prompt, log_folder, logger):
@@ -105,9 +243,17 @@ def process_problem(problem, model, dataset, log_folder, test_generator_prompt, 
     """
     task_id = problem["task_id"]
     try:
-        first_five_coverage, total_coverage, accuracy, input_tokens, output_tokens = singleAgent(
-            problem, dataset, model, test_generator_prompt, log_folder, logger
+        result = _run_single_agent_with_timeout(
+            problem,
+            dataset,
+            model,
+            test_generator_prompt,
+            log_folder,
+            logger,
         )
+        if result is None:
+            return task_id, 0, 0, 0.0, 0.0, 0.0
+        first_five_coverage, total_coverage, accuracy, input_tokens, output_tokens = result
         return task_id, input_tokens, output_tokens, first_five_coverage, total_coverage, accuracy
     except Exception as e:
         logger.error(f'Error processing problem {task_id}: {e}')
@@ -142,6 +288,10 @@ def main(argv=None) -> int:
             test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_humaneval_prompt.txt")
         elif args.generator_prompt == "original":
             test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_humaneval_prompt_original.txt")
+        elif args.generator_prompt == "zero_shot":
+            test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_humaneval_prompt_zero_shot.txt")
+        else:
+            raise ValueError(f"Unknown generator prompt: {args.generator_prompt}")
     elif args.dataset == "mbpp":
         test_generator_prompt = os.path.join(pipeline_dir, "prompts", "single_agent", "single_agent_mbpp_prompt.txt")
     else:

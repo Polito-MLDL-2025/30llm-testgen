@@ -94,7 +94,7 @@ def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> Non
     raise SystemExit(exit_code)
 
 
-def run_agent_main(argv: list[str], timeout_seconds: int = 180) -> None:
+def run_agent_main(argv: list[str], timeout_seconds: int = 600) -> None:
     attempt = 0
     while True:
         attempt += 1
@@ -153,12 +153,12 @@ def main(argv=None) -> int:
     parser.add_argument("--dataset", default="humaneval", help="Dataset to use.")
     parser.add_argument("--model", default="nvidia/nemotron-3-nano-30b-a3b", help="Model name.")
     parser.add_argument("--max-tasks", type=int, default=20, help="Maximum tasks per run.")
-    parser.add_argument("--max-workers", type=int, default=5, help="Workers per run.")
+    parser.add_argument("--max-workers", type=int, default=4, help="Workers per run.")
     parser.add_argument("--output-dir", default="logs", help="Directory for the CSV output.")
     parser.add_argument(
         "--predefine-name",
         default=None,
-        help="Base name for output CSVs (suffixes _default.csv/_original.csv are added).",
+        help="Base name for output CSVs (suffixes _default.csv/_original.csv/_zero_shot.csv are added).",
     )
     args = parser.parse_args(argv)
 
@@ -178,8 +178,9 @@ def main(argv=None) -> int:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    for generator_prompt in ("default", "original"):
+    prompts = ["default", "original", "zero_shot"]
+    # prompts = ["zero_shot"]
+    for generator_prompt in prompts:
         argv = build_argv(args, generator_prompt)
         rows: list[dict[str, str | int | float]] = []
 

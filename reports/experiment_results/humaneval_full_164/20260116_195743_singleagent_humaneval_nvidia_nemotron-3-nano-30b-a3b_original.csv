@@ -1,0 +1,3 @@
+run,log_dir,accuracy,first_five_coverage,coverage,input_tokens,output_tokens
+1,/home/thanhnv/PycharmProjects/30llm/logs/single_agent-humaneval-nvidia_nemotron-3-nano-30b-a3b-20260116_202147,86.64603529739829,90.46951219512195,91.9329268292683,111102,293976
+aggregate,,86.64603529739829,90.46951219512195,91.9329268292683,111102,293976

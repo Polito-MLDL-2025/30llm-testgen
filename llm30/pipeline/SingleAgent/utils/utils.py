@@ -56,9 +56,9 @@ def parse_args(argv=None):
 
     parser.add_argument(
         "--generator-prompt",
-        choices=["default", "original"],
+        choices=["default", "original", "zero_shot"],
         default="default",
-        help="Choose the generator prompt to use (default or original)."
+        help="Choose the generator prompt to use (default, original, or zero_shot)."
     )
 
     return parser.parse_args(argv)
