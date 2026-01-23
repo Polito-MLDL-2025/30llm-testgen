@@ -15,6 +15,71 @@ agents to collaborate, debate, or compete to produce more comprehensive test art
 The primary goal of this project is to determine whether multi-agent LLM systems can outperform
 single-agent or traditional methods in generating comprehensive, diverse, and effective test cases.
 
+This project builds upon the QAagent framework, a multi-agent system designed for unit test generation through natural language pseudocode. The original QAagent approach employs a two-stage pipeline where a code architect agent first generates an implementation plan in natural language and pseudocode, followed by a test generator agent that produces test cases based on this plan. This separation of concerns allows different perspectives to be incorporated into the test generation process, demonstrating superior performance on the HumanEval benchmark.
+
+This framework is adapted and extended by modifying the prompting strategies and introducing additional interaction mechanisms to better suit function-level test generation. The modifications include support for different reasoning styles in the planning phase and multiple strategies for combining outputs from multiple agents, enabling systematic comparison of collaborative versus competitive multi-agent architectures.
+
+## Methodology
+
+This project evaluates three distinct approaches to LLM-based test generation, progressing from simple single-agent baselines to sophisticated multi-agent architectures and compares them with QAagent framework.
+
+### Single Agent
+
+The single-agent approach serves as a baseline, generating test cases directly from the problem description in a single inference pass.
+This approach is computationally efficient, requiring only a single model invocation per problem with minimal token usage. However, it is inherently limited by single-perspective reasoning and may underrepresent challenging edge cases or uncommon execution paths, motivating the exploration of multi-agent alternatives.
+
+### Multi-Agent Collaborative
+
+The collaborative multi-agent system separates test generation into distinct planning and execution phases, mimicking real-world software development workflows.
+
+The system operates through a linear pipeline where three code architect agents independently analyze each problem and generate natural language pseudocode describing likely implementations. Each architect employs a different reasoning strategy—Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots—to maximize diversity in the generated plans. These plans are then consolidated and provided to a test generator agent, which produces comprehensive test suites covering both basic functionality and edge cases.
+
+After test generation, a merger agent reconciles outputs using one of two strategies. The **concat** strategy performs basic concatenation of all generated tests after removing empty entries. The **accuracy** strategy extend **concat** strategy by adding validations like filtering tests with syntax errors, AST-based deduplication, filtering of tests with incorrect function names, and retaining only those that pass successfully by executing them against the canonical solution.
+
+This architecture enables complementary reasoning strategies to be combined, potentially improving coverage and robustness on complex functions. The separation of planning and testing roles allows each agent to focus on its specialized task, while the merge phase ensures coherent final test suites.
+
+### Multi-Agent Competitive
+
+The competitive multi-agent approach generates complete test suites independently from each agent configuration and selects the highest-quality output. Rather than combining outputs, agents compete to produce the best solution.
+
+Each agent follows the same two-stage pipeline as the collaborative approach: a code architect generates pseudocode using a specific reasoning strategy, followed by a test generator producing test cases. However, each agent pair operates independently without sharing information during generation. All agent outputs are evaluated against the canonical solution using coverage and accuracy metrics.
+
+The final test suite is selected by ranking agents according to total line coverage as the primary criterion and test accuracy as a tiebreaker. This ensures the system delivers the most comprehensive and correct test suite from among all candidates. All intermediate results from competing agents are preserved for analysis.
+
+This competitive architecture allows direct comparison of different reasoning strategies under identical conditions. By evaluating each approach independently, the system avoids potential quality degradation from merging incompatible test cases while ensuring delivery of the best-performing solution.
+
+## Experiments
+
+### Evaluation Metrics
+
+Test quality is assessed using two complementary metrics that capture different aspects of test effectiveness:
+
+**Coverage:** Line coverage percentage measures the proportion of source code lines executed during test execution. Coverage for both the first five generated tests and the complete test suite are reported.
+
+**Accuracy:** Test accuracy is defined as the proportion of generated tests that pass when executed against the canonical solution. This metric validates that generated tests correctly specify expected behavior and do not contain false positives. Accuracy is computed by executing each test case individually and recording pass/fail outcomes.
+
+These metrics provide complementary perspectives: coverage measures thoroughness of test exploration, while accuracy measures correctness of test specifications. High-quality test suites achieve both comprehensive coverage and high accuracy.
+
+### Experimental Setup
+
+All experiments (single agent, multi agent cooperative, multi agent competitive, QAagent) are conducted on 20 functions selected from the HumanEval benchmark (average of 10 runs), then on the complete HumanEval benchmark (1 run).
+
+For single-agent experiments, each problem is evaluated once with the baseline configuration. Multi-agent experiments generate multiple independent planning perspectives per problem, which are then either merged or evaluated competitively depending on the architecture being tested.
+
+Prompt strategy:
+- **single-agent**, available prompts are: 
+  - **default** (assign role, task, rules, formatting rule, few-shots)
+  - **zero-shot** (assign role, task, formatting rule)
+  - **original** (assign role, task, formatting rule, few-shots)
+- **multi-agent cooperative** and **multi-agent competitive**:
+  - **Architect**: Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots
+  - **Generator**: **default** (assign role, task, rules, formatting rule, few-shots) or **original** (assign role, task, formatting rule, few-shots)
+- **QAagent**:
+  - **Architect**: Chain-of-Thought (assign role, task, plan formatting, few-shots)
+  - **Generator**: **default** (assign role, task, rules, formatting rule, few-shots) or **original** (assign role, task, formatting rule, few-shots)
+
+Model selection prioritizes instruction-following capability and reasoning performance on code-related tasks. Experiments are conducted using state-of-the-art instruction-tuned models that have demonstrated strong performance on programming benchmarks. All experiments use consistent decoding parameters (temperature, top-p) across configurations to isolate the effects of architectural choices.
+
 ## Project Organization
 
 ```
