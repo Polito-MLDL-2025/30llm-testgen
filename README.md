@@ -133,12 +133,12 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 
 
 ### Observations & Conclusion
-1.  **Prompt Engineering Matters**: Across all strategies, the "Augmented Few-Shot " (optimized) prompts consistently outperforms "Standard Few-Shot " and "Zero Shot" prompts. Zero Shot performance is significantly lower, highlighting the importance of few-shot examples or better instructions. **Prompt engineering is as important as strategy selection.** A well-designed prompt with explicit rules and examples can improve accuracy by 20-50%. 
-2.  **High Accuracy in Selected Subset**: The **QA Agent Merge (Augmented Few-Shot , Accuracy)** strategy achieves a perfect **100% accuracy** on the 20-problem subset and 97.56% on full dataset, demonstrating exceptional reliability on this curated set.
+1.  **Prompt Engineering Matters**: Across all strategies, the "Augmented Few-Shot " (optimized) prompts consistently outperforms "Standard Few-Shot " and "Zero Shot" prompts. Zero Shot performance is significantly lower, highlighting the importance of few-shot examples or better instructions. **Prompt engineering is as important as strategy selection.** A well-designed prompt with explicit rules and examples can improve both Execution Success Rate and Coverage score by 20-50%. 
+2.  **High Accuracy in Selected Subset**: The **QA Agent Merge (Augmented Few-Shot , Accuracy)** strategy achieves a perfect **100% Execution Success Rate** on the 20-problem subset and 97.56% on full dataset, demonstrating exceptional reliability on this curated set.
 3. **Best coverage**: QA Agent Augmented Few-Shot on 20 selected (99.40%) and Single Agent Augmented Few-Shot on full (98.77%).
 4. **Competitive vs. Efficient**:
-    *   **Single Agent (Augmented Few-Shot  )** is highly efficient (lowest token usage among high performers) while maintaining very high accuracy (97.24% on full dataset), making it a strong candidate for resource-constrained environments.
-    *   **QA Agent Competitive** and **Merge** strategies offer slight accuracy gains (reaching 97.56%) but at a substantial cost in token usage (approx. 3-4x more tokens than Single Agent).
+    *   **Single Agent (Augmented Few-Shot  )** is highly efficient (lowest token usage among high performers) while maintaining very high execution success rate (97.24% on full dataset), making it a strong candidate for resource-constrained environments.
+    *   **QA Agent Competitive** and **Merge** strategies offer slight execution success rate gains (reaching 97.56%) but at a substantial cost in token usage (approx. 3-4x more tokens than Single Agent).
 5. **Cost-Benefit Analysis**: For most general use cases, the **Single Agent (Augmented Few-Shot)** strategy provides the best balance of performance and cost. However, for critical tasks where every percentage point of accuracy counts, **QA Agent Merge (Accuracy)** is the superior choice.
 
 ## Running Experiment Scripts
