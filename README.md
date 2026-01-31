@@ -42,9 +42,9 @@ This architecture enables complementary reasoning strategies to be combined, pot
 
 The competitive multi-agent approach generates complete test suites independently from each agent configuration and selects the highest-quality output. Rather than combining outputs, agents compete to produce the best solution.
 
-Each agent follows the same two-stage pipeline as the collaborative approach: a code architect generates pseudocode using a specific reasoning strategy, followed by a test generator producing test cases. However, each agent pair operates independently without sharing information during generation. All agent outputs are evaluated against the canonical solution using coverage and accuracy metrics.
+Each agent follows the same two-stage pipeline as the collaborative approach: a code architect generates pseudocode using a specific reasoning strategy, followed by a test generator producing test cases. However, each agent pair operates independently without sharing information during generation. All agent outputs are evaluated against the canonical solution using coverage and execution success rate metrics.
 
-The final test suite is selected by ranking agents according to total line coverage as the primary criterion and test accuracy as a tiebreaker. This ensures the system delivers the most comprehensive and correct test suite from among all candidates. All intermediate results from competing agents are preserved for analysis.
+The final test suite is selected by ranking agents according to total line coverage as the primary criterion and test execution success rate as a tiebreaker. This ensures the system delivers the most comprehensive and correct test suite from among all candidates. All intermediate results from competing agents are preserved for analysis.
 
 This competitive architecture allows direct comparison of different reasoning strategies under identical conditions. By evaluating each approach independently, the system avoids potential quality degradation from merging incompatible test cases while ensuring delivery of the best-performing solution.
 
@@ -56,7 +56,7 @@ Test quality is assessed using three complementary metrics that capture differen
 
 **Coverage:** Line coverage percentage measures the proportion of source code lines executed during test execution. Coverage for both the first five generated tests and the complete test suite are reported.
 
-**Accuracy:** Test accuracy is defined as the proportion of generated tests that pass when executed against the canonical solution. This metric validates that generated tests correctly specify expected behavior and do not contain false positives. Accuracy is computed by executing each test case individually and recording pass/fail outcomes.
+**Execution Success Rate:** Test execution success rate is defined as the proportion of generated tests that pass when executed against the canonical solution. This metric validates that generated tests correctly specify expected behavior and do not contain false positives. Execution success rate is computed by executing each test case individually and recording pass/fail outcomes.
 
 **Tokens:** Average total token usage (Input + Output) provides insights into computational cost and efficiency of different strategies.
 
@@ -69,16 +69,16 @@ All experiments (single agent, multi agent cooperative, multi agent competitive,
 For single-agent experiments, each problem is evaluated once with the baseline configuration. Multi-agent experiments generate multiple independent planning perspectives per problem, which are then either merged or evaluated competitively depending on the architecture being tested.
 
 Prompt strategy:
-- **single-agent**, available prompts are: 
-  - **default** (assign role, task, rules, formatting rule, few-shots)
-  - **zero-shot** (assign role, task, formatting rule)
+- **Single-Agent**, available prompts are: 
+  - **Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots)
+  - **Zero-Shot** (assign role, task, formatting rule)
   - **original** (assign role, task, formatting rule, few-shots)
-- **multi-agent cooperative** and **multi-agent competitive**:
+- **Multi-Agent cooperative** and **Multi-Agent competitive**:
   - **Architect**: Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots
-  - **Generator**: **default** (assign role, task, rules, formatting rule, few-shots) or **original** (assign role, task, formatting rule, few-shots)
+  - **Generator**: **Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
 - **QAagent**:
   - **Architect**: Chain-of-Thought (assign role, task, plan formatting, few-shots)
-  - **Generator**: **default** (assign role, task, rules, formatting rule, few-shots) or **original** (assign role, task, formatting rule, few-shots)
+  - **Generator**: **Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
 
 
 ### Model Choice
@@ -100,44 +100,85 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 
 #### HumanEval - 20 Selected Problems (Average of 10 Runs)
 
-| Strategy             | Variant             | Accuracy | Coverage |     Tokens |
-| :------------------- | :------------------ | -------: | -------: | ---------: |
-| QA Agent             | Default             |    97.65 |    99.40 | 106,228.40 |
-| QA Agent             | Original            |    71.76 |    93.86 |  73,580.40 |
-| QA Agent Competitive | Default             |    98.93 |    99.20 | 333,891.50 |
-| QA Agent Competitive | Original            |    87.17 |    90.08 | 245,753.70 |
-| QA Agent Merge       | Default (Accuracy)  |   100.00 |    99.39 | 333,524.30 |
-| QA Agent Merge       | Default (Concat)    |    97.61 |    99.25 | 334,223.40 |
-| QA Agent Merge       | Original (Accuracy) |    91.00 |    88.87 | 235,632.30 |
-| QA Agent Merge       | Original (Concat)   |    72.94 |    93.58 | 241,940.20 |
-| Single Agent         | Default             |    98.48 |    98.92 |  82,873.70 |
-| Single Agent         | Original            |    78.89 |    84.66 |  49,949.10 |
-| Single Agent         | Zero Shot           |    48.66 |    57.15 |  47,511.50 |
+| Strategy             | Prompts                       | Execution Success Rate | Coverage |     Tokens |
+| :------------------- |:------------------------------|-----------------------:| -------: | ---------: |
+| Single Agent         | Zero Shot  (baseline)         |                  48.66 |    57.15 |  47,511.50 |
+| Single Agent         | Standard Few-Shot             |                  78.89 |    84.66 |  49,949.10 |
+| QA Agent             | Standard Few-Shot             |                  71.76 |    93.86 |  73,580.40 |
+| QA Agent Competitive | Standard Few-Shot             |                  87.17 |    90.08 | 245,753.70 |
+| QA Agent Merge       | Standard Few-Shot (Concat)    |                  72.94 |    93.58 | 241,940.20 |
+| QA Agent Merge       | Standard Few-Shot (Accuracy)  |                  91.00 |    88.87 | 235,632.30 |
+| Single Agent         | Augmented Few-Shot            |                  98.48 |    98.92 |  82,873.70 |
+| QA Agent             | Augmented Few-Shot            |                  97.65 |    99.40 | 106,228.40 |
+| QA Agent Competitive | Augmented Few-Shot            |                  98.93 |    99.20 | 333,891.50 |
+| QA Agent Merge       | Augmented Few-Shot (Concat)   |                  97.61 |    99.25 | 334,223.40 |
+| QA Agent Merge       | Augmented Few-Shot (Accuracy) |                 100.00 |    99.39 | 333,524.30 |
 
 #### HumanEval - Full Dataset (164 Problems) (1 Run)
 
-| Strategy             | Variant             | Accuracy | Coverage |       Tokens |
-| :------------------- | :------------------ | -------: | -------: | -----------: |
-| QA Agent             | Default             |    96.50 |    98.57 |   824,319.00 |
-| QA Agent             | Original            |    82.77 |    95.43 |   586,740.00 |
-| QA Agent Competitive | Default             |    96.92 |    97.92 | 2,564,180.00 |
-| QA Agent Competitive | Original            |    93.17 |    97.31 | 1,822,078.00 |
-| QA Agent Merge       | Default (Accuracy)  |    97.56 |    97.35 | 2,560,891.00 |
-| QA Agent Merge       | Default (Concat)    |    95.41 |    98.27 | 2,575,158.00 |
-| QA Agent Merge       | Original (Accuracy) |    96.95 |    96.62 | 1,890,739.00 |
-| QA Agent Merge       | Original (Concat)   |    81.17 |    93.82 | 1,845,532.00 |
-| Single Agent         | Default             |    97.24 |    98.77 |   641,483.00 |
-| Single Agent         | Original            |    86.65 |    91.93 |   405,078.00 |
-| Single Agent         | Zero Shot           |    60.61 |    68.11 |   362,462.00 |
+| Strategy             | Prompts                        | Accuracy | Coverage |       Tokens |
+| :------------------- |:-------------------------------| -------: | -------: | -----------: |
+| Single Agent         | Zero Shot (baseline)           |    60.61 |    68.11 |   362,462.00 |
+| Single Agent         | Standard Few-Shot              |    86.65 |    91.93 |   405,078.00 |
+| QA Agent             | Standard Few-Shot              |    82.77 |    95.43 |   586,740.00 |
+| QA Agent Competitive | Standard Few-Shot              |    93.17 |    97.31 | 1,822,078.00 |
+| QA Agent Merge       | Standard Few-Shot (Concat)     |    81.17 |    93.82 | 1,845,532.00 |
+| QA Agent Merge       | Standard Few-Shot (Accuracy)   |    96.95 |    96.62 | 1,890,739.00 |
+| Single Agent         | Augmented Few-Shot             |    97.24 |    98.77 |   641,483.00 |
+| QA Agent             | Augmented Few-Shot             |    96.50 |    98.57 |   824,319.00 |
+| QA Agent Competitive | Augmented Few-Shot             |    96.92 |    97.92 | 2,564,180.00 |
+| QA Agent Merge       | Augmented Few-Shot (Concat)    |    95.41 |    98.27 | 2,575,158.00 |
+| QA Agent Merge       | Augmented Few-Shot  (Accuracy) |    97.56 |    97.35 | 2,560,891.00 |
+
+
 
 ### Observations & Conclusion
-1.  **Prompt Engineering Matters**: Across all strategies, the "Default" (optimized) prompts consistently outperforms "Original" and "Zero Shot" prompts. Zero Shot performance is significantly lower, highlighting the importance of few-shot examples or better instructions. **Prompt engineering is as important as strategy selection.** A well-designed prompt with explicit rules and examples can improve accuracy by 20-50%. 
-2.  **High Accuracy in Selected Subset**: The **QA Agent Merge (Default, Accuracy)** strategy achieves a perfect **100% accuracy** on the 20-problem subset and 97.56% on full dataset, demonstrating exceptional reliability on this curated set.
-3. **Best coverage**: QA Agent default on 20 selected (99.40%) and Single Agent default on full (98.77%).
+1.  **Prompt Engineering Matters**: Across all strategies, the "Augmented Few-Shot " (optimized) prompts consistently outperforms "Standard Few-Shot " and "Zero Shot" prompts. Zero Shot performance is significantly lower, highlighting the importance of few-shot examples or better instructions. **Prompt engineering is as important as strategy selection.** A well-designed prompt with explicit rules and examples can improve accuracy by 20-50%. 
+2.  **High Accuracy in Selected Subset**: The **QA Agent Merge (Augmented Few-Shot , Accuracy)** strategy achieves a perfect **100% accuracy** on the 20-problem subset and 97.56% on full dataset, demonstrating exceptional reliability on this curated set.
+3. **Best coverage**: QA Agent Augmented Few-Shot on 20 selected (99.40%) and Single Agent Augmented Few-Shot on full (98.77%).
 4. **Competitive vs. Efficient**:
-    *   **Single Agent (Default)** is highly efficient (lowest token usage among high performers) while maintaining very high accuracy (97.24% on full dataset), making it a strong candidate for resource-constrained environments.
+    *   **Single Agent (Augmented Few-Shot  )** is highly efficient (lowest token usage among high performers) while maintaining very high accuracy (97.24% on full dataset), making it a strong candidate for resource-constrained environments.
     *   **QA Agent Competitive** and **Merge** strategies offer slight accuracy gains (reaching 97.56%) but at a substantial cost in token usage (approx. 3-4x more tokens than Single Agent).
-5. **Cost-Benefit Analysis**: For most general use cases, the **Single Agent (Default)** strategy provides the best balance of performance and cost. However, for critical tasks where every percentage point of accuracy counts, **QA Agent Merge (Accuracy)** is the superior choice.
+5. **Cost-Benefit Analysis**: For most general use cases, the **Single Agent (Augmented Few-Shot)** strategy provides the best balance of performance and cost. However, for critical tasks where every percentage point of accuracy counts, **QA Agent Merge (Accuracy)** is the superior choice.
+
+## Running Experiment Scripts
+
+### 1) Environment setup
+Create a virtual environment, install dependencies, and set your API key:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Set environment variables (or create a `.env` file in the project root with the same keys):
+
+```bash
+export OPENAI_API_KEY="sk-your-key"
+# Optional: custom OpenAI-compatible endpoint
+export OPENAI_URL_BASE="https://your-openai-compatible-base-url"
+```
+
+### 2) Run scripts
+All experiment runners live in `scripts/`. Typical usage:
+
+```bash
+# Run the full experiment suite
+python scripts/run_all.py
+
+# Run a single experiment script with custom settings
+python scripts/run_singleagent_10x.py --runs 5 --max-tasks 10 --max-workers 4
+```
+
+Available scripts:
+- `scripts/run_all.py`
+- `scripts/run_qaagent_10x.py`
+- `scripts/run_qaagent_competitive_10x.py`
+- `scripts/run_qaagent_merge_10x.py`
+- `scripts/run_singleagent_10x.py`
+
+Outputs are written to `logs/` as CSVs. For full argument lists, output naming, and runtime estimates, see `scripts/README.md`.
 
 ## Project Organization
 
