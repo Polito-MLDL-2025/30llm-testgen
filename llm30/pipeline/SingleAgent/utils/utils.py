@@ -50,8 +50,8 @@ def parse_args(argv=None):
     parser.add_argument(
         "--max-workers",
         type=int,
-        default=2,
-        help="Number of worker threads to use (default: 2)."
+        default=4,
+        help="Number of worker threads to use (default: 4)."
     )
 
     parser.add_argument(
@@ -59,6 +59,11 @@ def parse_args(argv=None):
         choices=["default", "original", "zero_shot"],
         default="default",
         help="Choose the generator prompt to use (default, original, or zero_shot)."
+    )
+    parser.add_argument(
+        "--dataset-path",
+        default=None,
+        help="Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset."
     )
 
     return parser.parse_args(argv)

@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 from datetime import datetime
 
 
@@ -119,3 +120,15 @@ def write_details(log_folder, result):
             f"First five coverage: {cur_first_five_coverage}\n"
             f"Coverage: {cur_total_coverage}\n"
             f"Input tokens: {cur_num_input_tokens}\nOutput tokens: {cur_num_output_tokens}\n")
+
+
+def ensure_stream_handler(logger):
+    if not any(
+            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+            for handler in logger.handlers
+    ):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)

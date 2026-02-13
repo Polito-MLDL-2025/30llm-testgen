@@ -6,19 +6,22 @@ import queue as queue_module
 import time
 import concurrent.futures
 
+from llm30.pipeline.QAagent.agents.process_handler import QAagentProcessHandler
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
     # Allow running this file directly from any working directory.
     sys.path.insert(0, PROJECT_ROOT)
 
-from llm30.pipeline.QAagent.utils.utils import read_problems, add_plan, add_canonical_solution, parse_args, update_total_stats
+from llm30.pipeline.QAagent.utils.utils import read_problems, add_plan, add_canonical_solution, parse_args, \
+    update_total_stats
 from llm30.pipeline.QAagent.utils.logging import (
     write_plan_and_tests_qa,
     create_log_folder,
     setup_logger,
     log_results,
     write_summary,
-    write_details,
+    write_details, ensure_stream_handler,
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
@@ -35,6 +38,7 @@ def generate_plan(problem_name, code_architect_prompt, model_name, logger):
     )
     return plan, plan_input_tokens, plan_output_tokens
 
+
 def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger):
     logger.info(f'Generating tests for problem ID {problem_name["task_id"]}')
     try:
@@ -50,151 +54,43 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
         logger.error(f'Error generating tests: {e}')
         raise
 
-def _ensure_stream_handler(logger):
-    if not any(
-        isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
-        for handler in logger.handlers
-    ):
-        stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        stream_handler.setFormatter(formatter)
-        logger.addHandler(stream_handler)
 
-
-def _qaagent_worker(
-    result_queue,
-    output_queue,
-    problem,
-    dataset,
-    model,
-    code_architect_prompt,
-    test_generator_prompt,
-    log_folder,
-):
-    class QueueWriter:
-        def __init__(self, queue):
-            self.queue = queue
-
-        def write(self, data):
-            if data:
-                self.queue.put(data)
-
-        def flush(self):
-            return None
-
-    sys.stdout = QueueWriter(output_queue)
-    sys.stderr = QueueWriter(output_queue)
-
-    logger = setup_logger(log_folder)
-    _ensure_stream_handler(logger)
+def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
+                    timeout_seconds=180, max_attempts=3):
     try:
-        result = qaAgent(
-            problem,
-            dataset,
-            model,
-            code_architect_prompt,
-            test_generator_prompt,
-            log_folder,
-            logger,
+        agent_processor = QAagentProcessHandler(
+            problem=problem,
+            dataset=dataset,
+            model=model,
+            code_architect_prompt=code_architect_prompt,
+            test_generator_prompt=test_generator_prompt,
+            log_folder=log_folder,
+            logger=logger,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+            run_qaagent_function=qaAgent
         )
-        result_queue.put(("ok", result))
-    except Exception as exc:
-        logger.exception("Worker error for problem %s: %s", problem.get("task_id"), exc)
-        result_queue.put(("error", str(exc)))
-
-
-def _run_qaagent_with_timeout(
-    problem,
-    dataset,
-    model,
-    code_architect_prompt,
-    test_generator_prompt,
-    log_folder,
-    logger,
-    timeout_seconds=180,
-    max_attempts=3,
-):
-    problem_id = problem.get("task_id")
-    ctx = multiprocessing.get_context("spawn")
-    for attempt in range(1, max_attempts + 1):
-        result_queue = ctx.Queue()
-        output_queue = ctx.Queue()
-        process = ctx.Process(
-            target=_qaagent_worker,
-            args=(
-                result_queue,
-                output_queue,
-                problem,
-                dataset,
-                model,
-                code_architect_prompt,
-                test_generator_prompt,
-                log_folder,
-            ),
+        result = agent_processor.run()
+        if result is None:
+            return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
+        curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result
+        return (
+            problem["task_id"],
+            curr_num_input_tokens,
+            curr_num_output_tokens,
+            curr_first_five_coverage_percentage,
+            curr_total_coverage_percentage,
+            accuracy_percentage,
         )
-        process.start()
+    except Exception as e:
+        logger.error(f'Error in problem ID {problem["task_id"]}: {e}')
+        with open(os.path.join(log_folder, 'errors.txt'), 'a') as f:
+            f.write(f'Error in problem ID {problem["task_id"]}: {e}\n')
+        return problem["task_id"], 0, 0, 0.0, 0.0, 0.0  # Return 0 tokens if there's an error
 
-        last_output = time.monotonic()
-        while True:
-            try:
-                chunk = output_queue.get(timeout=1)
-            except queue_module.Empty:
-                chunk = None
 
-            if chunk:
-                last_output = time.monotonic()
-                print(chunk, end="", flush=True)
-
-            if not process.is_alive():
-                process.join()
-                while True:
-                    try:
-                        chunk = output_queue.get_nowait()
-                    except queue_module.Empty:
-                        break
-                    if chunk:
-                        print(chunk, end="", flush=True)
-                try:
-                    status, payload = result_queue.get_nowait()
-                except queue_module.Empty:
-                    logger.warning(
-                        "Problem %s finished without result (attempt %s/%s). Retrying.",
-                        problem_id,
-                        attempt,
-                        max_attempts,
-                    )
-                    break
-                if status == "ok":
-                    return payload
-                logger.error(
-                    "Problem %s failed (attempt %s/%s): %s",
-                    problem_id,
-                    attempt,
-                    max_attempts,
-                    payload,
-                )
-                break
-
-            if time.monotonic() - last_output > timeout_seconds:
-                logger.warning(
-                    "Problem %s had no output for %ss (attempt %s/%s). Restarting.",
-                    problem_id,
-                    timeout_seconds,
-                    attempt,
-                    max_attempts,
-                )
-                process.terminate()
-                process.join(timeout=10)
-                if process.is_alive():
-                    process.kill()
-                    process.join(timeout=5)
-                break
-
-    logger.error("Problem %s failed after %s attempts.", problem_id, max_attempts)
-    return None
-
-def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_generator_prompt, log_folder, logger):
+def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_generator_prompt, log_folder, logger,
+            metadata=None):
     num_input_tokens = 0
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
@@ -206,7 +102,9 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     num_output_tokens += plan_output_tokens
 
     try:
-        generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan, test_generator_prompt, model_name, logger)
+        generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan,
+                                                                                test_generator_prompt, model_name,
+                                                                                logger)
         num_input_tokens += test_input_tokens
         num_output_tokens += test_output_tokens
     except Exception:
@@ -245,38 +143,11 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
 
     # Log results
-    log_results(problem_folder, first_five_coverage_report, total_coverage_report, test_results, logger, num_input_tokens, num_output_tokens)
+    log_results(problem_folder, first_five_coverage_report, total_coverage_report, test_results, logger,
+                num_input_tokens, num_output_tokens)
 
     return first_five_coverage, total_coverage, accuracy, num_input_tokens, num_output_tokens
 
-
-def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger):
-    try:
-        result = _run_qaagent_with_timeout(
-            problem,
-            dataset,
-            model,
-            code_architect_prompt,
-            test_generator_prompt,
-            log_folder,
-            logger,
-        )
-        if result is None:
-            return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
-        curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result
-        return (
-            problem["task_id"],
-            curr_num_input_tokens,
-            curr_num_output_tokens,
-            curr_first_five_coverage_percentage,
-            curr_total_coverage_percentage,
-            accuracy_percentage,
-        )
-    except Exception as e:
-        logger.error(f'Error in problem ID {problem["task_id"]}: {e}')
-        with open(os.path.join(log_folder, 'errors.txt'), 'a') as f:
-            f.write(f'Error in problem ID {problem["task_id"]}: {e}\n')
-        return problem["task_id"], 0, 0, 0.0, 0.0, 0.0  # Return 0 tokens if there's an error
 
 def main(argv=None) -> int:
     args = parse_args(argv)
@@ -286,11 +157,11 @@ def main(argv=None) -> int:
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model)
     logger = setup_logger(log_folder)
-    _ensure_stream_handler(logger)
+    ensure_stream_handler(logger)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("QA Agent Test Case Generation Pipeline")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Model: {model}")
     print(f"Dataset: {dataset}")
     print(f"Log folder: {log_folder}")
@@ -303,7 +174,8 @@ def main(argv=None) -> int:
         "humaneval": {
             "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt.txt"),
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
-            "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt_original.txt"),
+            "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1",
+                                                    "test_generator_humaneval_prompt_original.txt"),
         },
         "mbpp": {
             "code_architect": os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt"),
@@ -315,13 +187,16 @@ def main(argv=None) -> int:
     if args.generator_prompt == "original":
         test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
 
-    # Load dataset
+    # Load dataset default
     dataset_map = {
         "humaneval": os.path.join(pipeline_dir, "datasets", "humaneval", "problems.jsonl"),
         "mbpp": os.path.join(pipeline_dir, "datasets", "mbpp", "problems.jsonl")
     }
-    problems = read_problems(dataset_map[args.dataset])
-    print(f"Loaded {len(problems)} problems from: {dataset_map[args.dataset]}")
+    dataset_path = dataset_map[args.dataset]
+    if args.dataset_path:
+        dataset_path = args.dataset_path
+    problems = read_problems(dataset_path)
+    print(f"Loaded {len(problems)} problems from: {dataset_path}")
 
     # Initialize statistics
     total_stats = {
@@ -344,8 +219,8 @@ def main(argv=None) -> int:
     if args.max_workers <= 0:
         raise ValueError("max_workers must be positive.")
     total_problems = end_index - start_index
-    print(f"Processing {total_problems} problems (index {start_index} to {end_index-1})")
-    print(f"{'='*60}\n")
+    print(f"Processing {total_problems} problems (index {start_index} to {end_index - 1})")
+    print(f"{'=' * 60}\n")
 
     # Create a ThreadPoolExecutor
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
@@ -383,9 +258,9 @@ def main(argv=None) -> int:
                 print(f"[{completed}/{total_problems}] Error at index {problem_index}")
 
     # Final summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("QA Agent Pipeline Completed!")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     if total_stats['evaluated'] > 0:
         print(f"Problems evaluated: {total_stats['evaluated']}")
         print(f"Average accuracy: {total_stats['accuracy'] / total_stats['evaluated']:.2f}%")
@@ -394,7 +269,7 @@ def main(argv=None) -> int:
         print(f"Total input tokens: {total_stats['input_tokens']}")
         print(f"Total output tokens: {total_stats['output_tokens']}")
     print(f"Results saved to: {log_folder}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
     return 0
 
 
