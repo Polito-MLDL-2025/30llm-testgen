@@ -8,6 +8,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     # Ensure local imports work when running via "python scripts/...".
@@ -46,21 +48,6 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
         "input_tokens": int(values["input tokens"]),
         "output_tokens": int(values["output tokens"]),
     }
-
-
-def build_argv(args: argparse.Namespace, generator_prompt: str) -> list[str]:
-    return [
-        "--dataset",
-        args.dataset,
-        "--model",
-        args.model,
-        "--max-tasks",
-        str(args.max_tasks),
-        "--max-workers",
-        str(args.max_workers),
-        "--generator-prompt",
-        generator_prompt,
-    ]
 
 
 def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> None:
@@ -149,17 +136,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Run QAagent competitive sequentially and aggregate summary stats into CSVs."
     )
-    parser.add_argument("--runs", type=int, default=10, help="Number of sequential runs.")
-    parser.add_argument("--dataset", default="humaneval", help="Dataset to use.")
-    parser.add_argument("--model", default="nvidia/nemotron-3-nano-30b-a3b", help="Model name.")
-    parser.add_argument("--max-tasks", type=int, default=20, help="Maximum tasks per run.")
-    parser.add_argument("--max-workers", type=int, default=5, help="Workers per run.")
-    parser.add_argument("--output-dir", default="logs", help="Directory for the CSV output.")
-    parser.add_argument(
-        "--predefine-name",
-        default=None,
-        help="Base name for output CSVs (suffixes _default.csv/_original.csv are added).",
-    )
+    parser = config_run_agent_parser(parser)
     args = parser.parse_args(argv)
 
     if args.runs <= 0:
@@ -180,7 +157,7 @@ def main(argv=None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for generator_prompt in ("default", "original"):
-        argv = build_argv(args, generator_prompt)
+        argv = build_argv_agent(args, generator_prompt)
         rows: list[dict[str, str | int | float]] = []
 
         for run_idx in range(1, args.runs + 1):
@@ -213,7 +190,7 @@ def main(argv=None) -> int:
                     **stats,
                 }
             )
-            
+
             # Print summary after each run
             print(f"  → Run {run_idx} complete: "
                   f"Accuracy={stats['accuracy']:.2f}%, "
@@ -255,16 +232,16 @@ def main(argv=None) -> int:
             writer.writerows(rows)
 
         # Print summary for this configuration
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[{generator_prompt}] Configuration Complete - Summary of {args.runs} runs:")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Average Accuracy:          {avg_accuracy:.2f}%")
         print(f"Average First-Five Cov:    {avg_first_five:.2f}%")
         print(f"Average Total Coverage:    {avg_coverage:.2f}%")
         print(f"Total Input Tokens:        {sum_input_tokens:,}")
         print(f"Total Output Tokens:       {sum_output_tokens:,}")
         print(f"CSV saved to: {output_path}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
     return 0
 
 
