@@ -43,53 +43,58 @@ assert check(input1) == expected_output1, "Test Case 1 Name and Description"
 assert check(input2) == expected_output2, "Test Case 2 Name and Description"
 ```
 
+
 # For example:
 
 ## Prompt 1:
 ```python
+from typing import List
 
 
-def add(x: int, y: int):
-    """Add two numbers x and y
-    >>> add(2, 3)
-    5
-    >>> add(5, 7)
-    12
+def has_close_elements(numbers: List[float], threshold: float) -> bool:
+    """ Check if in given list of numbers, are any two numbers closer to each other than
+    given threshold.
+    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+    False
+    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+    True
     """
 
 ```
 
 ## Completion 1:
 ```
-assert add(2, 3) == 5, "Test Case 1: Basic addition matching docstring example"
-assert add(5, 7) == 12, "Test Case 2: Another docstring example"
-assert add(0, 0) == 0, "Test Case 3: Adding zeros"
-assert add(-1, 1) == 0, "Test Case 4: Adding opposites"
-assert add(-2, -3) == -5, "Test Case 5: Adding two negative numbers"
-assert add(1000000, 1) == 1000001, "Test Case 6: Large positive number"
-assert add(100, -50) == 50, "Test Case 7: Positive and negative combination"
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold"
+assert has_close_elements([1.0], 0.5) == False, "Test Case 3: Single element list"
+assert has_close_elements([], 1.0) == False, "Test Case 4: Empty list"
+assert has_close_elements([1.0, 1.0], 0.0) == False, "Test Case 5: Identical elements with zero threshold"
+assert has_close_elements([1.0, 1.1], 0.15) == True, "Test Case 6: Elements barely within threshold"
+assert has_close_elements([1.0, 3.0, 5.0], 1.5) == False, "Test Case 7: No close elements with larger threshold"
 ```
 
 ## Prompt 2:
 ```python
+from typing import List
 
 
-def strlen(string: str) -> int:
-    """ Return length of given string
-    >>> strlen('')
-    0
-    >>> strlen('abc')
-    3
+def separate_paren_groups(paren_string: str) -> List[str]:
+    """ Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
+    separate those group into separate strings and return the list of those.
+    Separate groups are balanced (each open brace is properly closed) and not nested within each other
+    Ignore any spaces in the input string.
+    >>> separate_paren_groups('( ) (( )) (( )( ))')
+    ['()', '(())', '(()())']
     """
 
 ```
 
 ## Completion 2:
 ```
-assert strlen('') == 0, "Test Case 1: Empty string"
-assert strlen('abc') == 3, "Test Case 2: Normal string from docstring"
-assert strlen('a') == 1, "Test Case 3: Single character"
-assert strlen('hello world') == 11, "Test Case 4: String with space"
-assert strlen('12345') == 5, "Test Case 5: Numeric string"
-assert strlen('  ') == 2, "Test Case 6: Only spaces"
+assert separate_paren_groups('( ) (( )) (( )( ))') == ['()', '(())', '(()())'], "Test Case 1: Separate nested and adjacent parentheses"
+assert separate_paren_groups('()') == ['()'], "Test Case 2: Single group"
+assert separate_paren_groups('') == [], "Test Case 3: Empty string"
+assert separate_paren_groups('(())') == ['(())'], "Test Case 4: Nested parentheses in single group"
+assert separate_paren_groups('( ( ) )') == ['(())'], "Test Case 5: Spaces in nested parentheses"
+assert separate_paren_groups('() () ()') == ['()', '()', '()'], "Test Case 6: Multiple simple groups"
 ```
