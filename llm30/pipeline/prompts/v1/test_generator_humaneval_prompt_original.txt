@@ -28,13 +28,8 @@ def has_close_elements(numbers: List[float], threshold: float) -> bool:
 
 ## Completion 1:
 ```
-assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold"
-assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold"
-assert has_close_elements([1.0], 0.5) == False, "Test Case 3: Single element list"
-assert has_close_elements([], 1.0) == False, "Test Case 4: Empty list"
-assert has_close_elements([1.0, 1.0], 0.0) == False, "Test Case 5: Identical elements with zero threshold"
-assert has_close_elements([1.0, 1.1], 0.15) == True, "Test Case 6: Elements barely within threshold"
-assert has_close_elements([1.0, 3.0, 5.0], 1.5) == False, "Test Case 7: No close elements with larger threshold"
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold returns False"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold returns True"
 ```
 
 ## Prompt 2:
@@ -56,9 +51,4 @@ def separate_paren_groups(paren_string: str) -> List[str]:
 ## Completion 2:
 ```
 assert separate_paren_groups('( ) (( )) (( )( ))') == ['()', '(())', '(()())'], "Test Case 1: Separate nested and adjacent parentheses"
-assert separate_paren_groups('()') == ['()'], "Test Case 2: Single group"
-assert separate_paren_groups('') == [], "Test Case 3: Empty string"
-assert separate_paren_groups('(())') == ['(())'], "Test Case 4: Nested parentheses in single group"
-assert separate_paren_groups('( ( ) )') == ['(())'], "Test Case 5: Spaces in nested parentheses"
-assert separate_paren_groups('() () ()') == ['()', '()', '()'], "Test Case 6: Multiple simple groups"
 ```
