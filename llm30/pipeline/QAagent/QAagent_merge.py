@@ -4,7 +4,7 @@ import ast
 import textwrap
 import concurrent.futures
 
-from llm30.pipeline.QAagent.agents.merge_strategies.merger_accuarcy import merge_test_accuracy
+from llm30.pipeline.QAagent.agents.merge_strategies.merger_accuracy import merge_test_accuracy
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_concat import merge_plans_concat, merge_tests_concat_enhanced
 from llm30.pipeline.QAagent.agents.process_handler import QAagentProcessHandler
 
