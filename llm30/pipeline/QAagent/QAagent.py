@@ -1,7 +1,12 @@
 import os
 import sys
+import logging
+import multiprocessing
+import queue as queue_module
+import time
 import concurrent.futures
 
+from llm30.pipeline.QAagent.agents.process_handler import QAagentProcessHandler
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
@@ -53,15 +58,19 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
                     timeout_seconds=180, max_attempts=3):
     try:
-        result = qaAgent(
-            problem_name=problem,
+        agent_processor = QAagentProcessHandler(
+            problem=problem,
             dataset=dataset,
-            model_name=model,
+            model=model,
             code_architect_prompt=code_architect_prompt,
             test_generator_prompt=test_generator_prompt,
             log_folder=log_folder,
             logger=logger,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+            run_qaagent_function=qaAgent
         )
+        result = agent_processor.run()
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
         curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result

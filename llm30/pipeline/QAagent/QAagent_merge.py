@@ -1,10 +1,12 @@
 import os
 import sys
+import ast
+import textwrap
 import concurrent.futures
 
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_accuracy import merge_test_accuracy
-from llm30.pipeline.QAagent.agents.merge_strategies.merger_agent_multi_steps import merge_tests_llm_multi_steps
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_concat import merge_plans_concat, merge_tests_concat_enhanced
+from llm30.pipeline.QAagent.agents.process_handler import QAagentProcessHandler
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
@@ -29,14 +31,6 @@ from llm30.pipeline.QAagent.agents.merge_strategies.merger_agent import (
 )
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
-
-
-def _write_merge_debug_file(debug_mode, debug_dir, filename, content):
-    if not debug_mode:
-        return
-    os.makedirs(debug_dir, exist_ok=True)
-    with open(os.path.join(debug_dir, filename), "w") as f:
-        f.write(content)
 
 
 def generate_plan(problem_name, code_architect_prompt, model_name, logger, agent_index=None):
@@ -75,11 +69,9 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
     merge_strategy = metadata.get("merge_strategy") if metadata else "concat"
-    debug_mode = bool(metadata.get("debug_mode")) if metadata else False
-    debug_dir = os.path.join(log_folder, f"problem_{problem_id}", "merger_debug")
     logger.info(
         f'Starting QA Agent merge pipeline for problem ID {problem_id} '
-        f'using strategy {merge_strategy} (debug_mode={debug_mode})'
+        f'using strategy {merge_strategy}'
     )
 
     # generate natural language pseudocode from problem["prompt"]
@@ -113,12 +105,6 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
                 agent_index=i + 1,
             )
             generated_tests.append(tests)
-            _write_merge_debug_file(
-                debug_mode,
-                debug_dir,
-                f"generated_tests_agent_{i + 1:02d}.py",
-                tests,
-            )
             num_input_tokens += test_input_tokens
             num_output_tokens += test_output_tokens
             logger.info(f"Step: test generation complete for agent {i + 1}/{len(plan)}")
@@ -127,7 +113,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
 
     # Merge plans and tests according to the specified strategy
     logger.info(
-        f"Step: merge '{merge_strategy}' start for problem ID {problem_id} "
+        f"Step: merge start for problem ID {problem_id} "
         f"({len(generated_tests)} test sets)"
     )
     if merge_strategy == "concat":
@@ -152,36 +138,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         else:
             # Pass the merged plan (all plans concatenated) to provide full context
             merged_tests, merge_input_tokens, merge_output_tokens = merge_tests_llm(
-                generated_tests,
-                problem_name,
-                merged_plan,
-                merger_prompt_path,
-                model_name,
-                logger,
-                debug_mode=debug_mode,
-                debug_dir=debug_dir,
-            )
-            num_input_tokens += merge_input_tokens
-            num_output_tokens += merge_output_tokens
-            logger.info(f'Merged tests using LLM strategy')
-    elif merge_strategy == "llm_multi_steps":
-        merged_plan = merge_plans_concat(plan)
-        merger_prompt_path = metadata.get("merger_prompt_path") if metadata else None
-        if merger_prompt_path is None:
-            logger.error("Merger prompt path not provided for LLM merge strategy")
-            # Fallback to concat
-            merged_tests = merge_tests_concat(generated_tests)
-        else:
-            # Pass the merged plan (all plans concatenated) to provide full context
-            merged_tests, merge_input_tokens, merge_output_tokens = merge_tests_llm_multi_steps(
-                generated_tests,
-                problem_name,
-                merged_plan,
-                merger_prompt_path,
-                model_name,
-                logger,
-                debug_mode=debug_mode,
-                debug_dir=debug_dir,
+                generated_tests, problem_name, merged_plan, merger_prompt_path, model_name, logger
             )
             num_input_tokens += merge_input_tokens
             num_output_tokens += merge_output_tokens
@@ -198,18 +155,6 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     logger.info(
         f"Step: merge complete for problem ID {problem_id} "
         f"({len(merged_tests.splitlines())} test lines)"
-    )
-    _write_merge_debug_file(
-        debug_mode,
-        debug_dir,
-        "merged_tests_final.py",
-        merged_tests,
-    )
-    _write_merge_debug_file(
-        debug_mode,
-        debug_dir,
-        "merged_plan_final.txt",
-        merged_plan,
     )
 
     # log plan/pseudocode and tests
@@ -253,22 +198,26 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
 
 
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
-                    merge_strategy="concat", merger_prompt_path=None, debug_mode=False,
-                    timeout_seconds=200, max_attempts=3, retry_sleep_seconds=60):
+                    merge_strategy="concat", merger_prompt_path=None, timeout_seconds=180, max_attempts=3):
     try:
-        result = qaAgent(
-            problem,
-            dataset,
-            model,
-            code_architect_prompt,
-            test_generator_prompt,
-            log_folder,
-            logger,
-            metadata={
-                "merge_strategy": merge_strategy,
-                "merger_prompt_path": merger_prompt_path,
-                "debug_mode": debug_mode,
-            })
+
+        agent_processor = QAagentProcessHandler(
+            problem=problem,
+            dataset=dataset,
+            model=model,
+            code_architect_prompt=code_architect_prompt,
+            test_generator_prompt=test_generator_prompt,
+            log_folder=log_folder,
+            logger=logger,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+            run_qaagent_function=qaAgent
+        )
+        metadata = {
+            "merge_strategy": merge_strategy,
+            "merger_prompt_path": merger_prompt_path
+        }
+        result = agent_processor.run(metadata=metadata)
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
         curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result
@@ -294,7 +243,7 @@ def main(argv=None) -> int:
     model = args.model
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model, prefix='QAagent_merge')
-    logger = setup_logger(log_folder, debug_mode=args.debug_mode)
+    logger = setup_logger(log_folder)
     ensure_stream_handler(logger)
 
     print(f"\n{'=' * 60}")
@@ -304,8 +253,6 @@ def main(argv=None) -> int:
     print(f"Dataset: {dataset}")
     print(f"Log folder: {log_folder}")
     print(f"Max workers: {args.max_workers}")
-    print(f"Debug mode: {args.debug_mode}")
-    print(f"Retry sleep seconds: {args.retry_sleep_seconds}")
 
     pipeline_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -367,8 +314,6 @@ def main(argv=None) -> int:
         end_index = min(end_index, start_index + args.max_tasks)
     if args.max_workers <= 0:
         raise ValueError("max_workers must be positive.")
-    if args.retry_sleep_seconds < 0:
-        raise ValueError("retry_sleep_seconds must be non-negative.")
     total_problems = end_index - start_index
     print(f"Processing {total_problems} problems (index {start_index} to {end_index - 1})")
     print(f"{'=' * 60}\n")
@@ -388,8 +333,6 @@ def main(argv=None) -> int:
                 logger,
                 args.merge_strategy,
                 merger_prompt_path,
-                args.debug_mode,
-                retry_sleep_seconds=args.retry_sleep_seconds,
             ): i
             for i in range(start_index, end_index)
         }

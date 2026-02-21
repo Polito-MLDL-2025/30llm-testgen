@@ -57,13 +57,12 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--merge-strategy",
-        choices=["concat", "concat-enhanced", "llm", "llm_multi_steps", "accuracy"],
+        choices=["concat", "concat-enhanced", "llm", "accuracy"],
         default="concat",
         help=(
             "Strategy to merge test sets: 'concat' (concatenate all, default), "
             "'concat-enhanced' (concat with syntax validation and deduplication), "
-            "'llm' (use one LLM call to merge), "
-            "'llm_multi_steps' (two-step LLM filter + aggregate), or "
+            "'llm' (use LLM to merge intelligently), or "
             "'accuracy' (filter to tests that pass the canonical solution)."
         )
     )
@@ -80,17 +79,6 @@ def parse_args(argv=None):
         "--dataset-path",
         default=None,
         help="Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset."
-    )
-    parser.add_argument(
-        "--debug-mode",
-        action="store_true",
-        help="Enable debug logging and write detailed merger outputs to log files."
-    )
-    parser.add_argument(
-        "--retry-sleep-seconds",
-        type=int,
-        default=60,
-        help="Seconds to sleep between retry attempts after a failed/timed-out run."
     )
     return parser.parse_args(argv)
 
