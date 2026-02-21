@@ -1,14 +1,24 @@
-You are an expert software engineer with many years of experience in test case generation and code quality assurance.
+**Role**: You are a software tester and quality assurance engineer.
 
-Your task is to merge multiple test sets into a single, high-quality test set. When merging, you must:
+Your task is to merge multiple test sets into a single, high-quality test set.
 
-1. Remove duplicate tests (same inputs and same assertions, even if they have different variable names or formatting but same logic according to AST analysis)
-2. Remove tests with conflicting expectations for the same inputs
-3. Standardize naming conventions - use the correct function name
-4. Fix or remove tests with syntax errors
-5. Remove assertions that would fail
-6. Do NOT add new assertions that are not present in any of the provided test sets
-7. Ensure deterministic behavior and maximize existing coverage without redundancy
+## Merging Process (follow this order):
+
+**Step 1: Remove Syntax Errors**
+First, identify and remove any test that has a syntax error:
+- Missing parentheses, brackets, or quotation marks
+- Invalid Python syntax
+- If a test cannot be parsed, remove it
+
+**Step 2: Standardize Function Names**
+Next, remove tests that use incorrect function names:
+- Use ONLY the correct function name as specified by the Entry Point
+- Remove any tests calling functions with different names
+- Example: if entry point is `has_close_elements`, remove tests calling `hasCloseElements` or `check_close_elements`
+
+**Important Rules:**
+- Do NOT add new test cases that are not present in any input test set
+- Ensure the final output contains only valid, executable Python assert statements
 
 Output format:
 - Your response MUST contain ONLY the merged test code wrapped in a ```python code block
@@ -21,116 +31,82 @@ Here are examples of how to merge test sets:
 
 Example 1:
 
-## Prompt 1:
-
-```python
-from typing import List
-
-
-def has_close_elements(numbers: List[float], threshold: float) -> bool:
-    """ Check if in given list of numbers, are any two numbers closer to each other than
-    given threshold.
-    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
-    False
-    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
-    True
-    """
-
-```
-
 Entry Point: `has_close_elements`
 
-Reference Implementation:
+## Test Set 1:
 ```python
-    for idx, elem in enumerate(numbers):
-    for idx2, elem2 in enumerate(numbers):
-        if idx != idx2:
-            distance = abs(elem - elem2)
-            if distance < threshold:
-                return True
-
-    return False
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold"
+assert has_close_elements([1.0,2.0,3.0],0.5)==False, "Test Case 1b: Same test with different whitespace"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold"
+assert has_close_elements([1.0, 2.0], 0.1 == False, "Syntax error: missing closing parenthesis"
 ```
 
-Input test sets:
-```
-assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False
-result = has_close_elements([1.0, 2.0, 3.0], 0.5) == False
-assert result is False
-assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True
-assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == False
-assert hasCloseElements([1.0, 1.1], 0.2) == True
-assert has_close_elements([1.0, 1.1], 0.2) == True
-assert has_close_elements([1.0, 2.0], 0.1 == False
+## Test Set 2:
+```python
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "No close elements test"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == False, "Different expectation for same input"
+assert hasCloseElements([1.0, 1.1], 0.2) == True, "Wrong function name"
+assert has_close_elements([1.0, 1.1], 0.2) == True, "Elements barely within threshold"
+assert has_close_elements([5.0, 5.5], 0.3, "Syntax error: missing closing parenthesis"
 ```
 
-Merged solution:
+## Test Set 3:
+```python
+result = has_close_elements([1.0, 2.0, 3.0], 0.5)
+assert check_close_elements([10.0, 10.2], 0.1) == True, "Wrong function name"
+assert has_close_elements([10.0, 10.2], 0.1) == True, "Test with different values"
 ```
-assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False
-assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True
-assert has_close_elements([1.0, 1.1], 0.2) == True
+
+## Merged Test Set:
+```python
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "Test Case 1: No elements within threshold"
+assert has_close_elements([1.0,2.0,3.0],0.5)==False, "Test Case 1b: Same test with different whitespace"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True, "Test Case 2: Elements within threshold"
+assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False, "No close elements test"
+assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == False, "Different expectation for same input"
+assert has_close_elements([1.0, 1.1], 0.2) == True, "Elements barely within threshold"
+assert has_close_elements([10.0, 10.2], 0.1) == True, "Test with different values"
 ```
 
 Example 2:
 
-## Prompt 2:
-```python
-from typing import List
-
-
-def separate_paren_groups(paren_string: str) -> List[str]:
-    """ Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
-    separate those group into separate strings and return the list of those.
-    Separate groups are balanced (each open brace is properly closed) and not nested within each other
-    Ignore any spaces in the input string.
-    >>> separate_paren_groups('( ) (( )) (( )( ))')
-    ['()', '(())', '(()())']
-    """
-
-```
-``
-
 Entry Point: `separate_paren_groups`
 
-Reference Implementation:
+## Test Set 1:
 ```python
-    result = []
-    current_string = []
-    current_depth = 0
-
-    for c in paren_string:
-        if c == '(':
-            current_depth += 1
-            current_string.append(c)
-        elif c == ')':
-            current_depth -= 1
-            current_string.append(c)
-
-            if current_depth == 0:
-                result.append(''.join(current_string))
-                current_string.clear()
-
-    return result
+assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"], "Test Case 1: Separate nested groups"
+assert separate_paren_groups("( ) (( )) (( )( ))")==["()", "(())", "(()())"], "Same test different whitespace"
+assert separate_paren_groups("( )") == ["()"], "Test Case 2: Single simple group"
+assert separate_paren_groups("( )") == ["()", "Syntax error: missing closing bracket"
 ```
 
-Input test sets:
-```
-assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"]
-result = separate_paren_groups("( ) (( )) (( )( ))")
-assert result == ['()', '(())', '(()())']
-assert separate_paren_groups("()(( ))(( )( ))") == ["()", "(())", "(()())"]
-assert separate_paren_groups("(()) ()") == ["(())", "()"]
-assert separate_paren_groups("(()) ()") == ["(())", "(())"]
-assert separateParenGroups("( )") == ["()"]
-assert separate_paren_groups("( )") == ["()"]
-assert separate_paren_groups("( )") == ["()"
+## Test Set 2:
+```python
+assert separate_paren_groups("(()) ()") == ["(())", "()"], "Test Case 3: Nested and simple"
+assert separate_paren_groups("(()) ()") == ["(())", "(())"], "Different expectation for same input"
+assert separateParenGroups("()") == ["()"], "Wrong function name"
+assert separate_paren_groups("()(())") == ["()", "(())"], "Test Case 4: Adjacent groups"
 ```
 
-Merged solution:
+## Test Set 3:
+```python
+result = separate_paren_groups("( )")
+assert separate_paren_groups("( )") == ["()"], "Single group with spaces"
+assert SeparateParenGroups("(()())") == ["(()())"], "Wrong function name"
+assert separate_paren_groups("(()())") == ["(()())"], "Test Case 5: Complex nesting"
+assert separate_paren_groups"(()(()))") == ["()", "(())"], "Syntax error: missing opening parenthesis"
 ```
-assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"]
-assert separate_paren_groups("(()) ()") == ["(())", "()"]
-assert separate_paren_groups("( )") == ["()"]
+
+## Merged Test Set:
+```python
+assert separate_paren_groups("( ) (( )) (( )( ))") == ["()", "(())", "(()())"], "Test Case 1: Separate nested groups"
+assert separate_paren_groups("( ) (( )) (( )( ))")==["()", "(())", "(()())"], "Same test different whitespace"
+assert separate_paren_groups("( )") == ["()"], "Test Case 2: Single simple group"
+assert separate_paren_groups("(()) ()") == ["(())", "()"], "Test Case 3: Nested and simple"
+assert separate_paren_groups("(()) ()") == ["(())", "(())"], "Different expectation for same input"
+assert separate_paren_groups("()(())") == ["()", "(())"], "Test Case 4: Adjacent groups"
+assert separate_paren_groups("( )") == ["()"], "Single group with spaces"
+assert separate_paren_groups("(()())") == ["(()())"], "Test Case 5: Complex nesting"
 ```
 ---
 Now merge the following test sets according to these rules. Remember to output ONLY a ```python code block with the merged tests:
