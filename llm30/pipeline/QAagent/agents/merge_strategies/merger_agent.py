@@ -1,12 +1,21 @@
 import time
 import ast
+import os
 
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_concat import merge_tests_concat
 from llm30.pipeline.QAagent.utils.processing import process_block
 from llm30.pipeline.QAagent.tools.call_and_handle import call_and_handle
 
 
-def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
+def _write_debug_file(debug_mode, debug_dir, filename, content):
+    if not debug_mode or not debug_dir:
+        return
+    os.makedirs(debug_dir, exist_ok=True)
+    with open(os.path.join(debug_dir, filename), "w") as f:
+        f.write(content)
+
+
+def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger, debug_mode=False, debug_dir=None):
     """
     Merge multiple test sets using an LLM to intelligently combine tests,
     removing duplicates, conflicts, and syntax errors.
@@ -43,6 +52,12 @@ def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
     test_sets_str = ""
     for i, tests in enumerate(valid_test_sets, 1):
         test_sets_str += f"\n## Test Set {i}:\n```python\n{tests}\n```\n"
+        _write_debug_file(
+            debug_mode,
+            debug_dir,
+            f"llm_single_input_suite_{i:02d}.py",
+            tests,
+        )
 
     entry_point = problem_name.get("entry_point", "")
     reference_impl = problem_name.get("canonical_solution", "")
@@ -70,10 +85,7 @@ Reference Implementation:
 
 ## Merged Test Set:
 """
-    print("--"*100)
-    print("Full merger prompt constructed.")
-    print(full_merger_prompt)
-    print("--"*100)
+    _write_debug_file(debug_mode, debug_dir, "llm_single_prompt.txt", full_merger_prompt)
     messages = [
         {"role": "system", "content": "You are a software programmer."},
         {"role": "user", "content": full_merger_prompt}
@@ -81,7 +93,10 @@ Reference Implementation:
     
     try:
         merged_tests_response, input_token_count, output_token_count = call_and_handle(messages, model)
-        merged_tests = process_block(merged_tests_response.choices[0].message.content)
+        raw_response = merged_tests_response.choices[0].message.content or ""
+        merged_tests = process_block(raw_response)
+        _write_debug_file(debug_mode, debug_dir, "llm_single_raw_response.txt", raw_response)
+        _write_debug_file(debug_mode, debug_dir, "llm_single_merged_tests.py", merged_tests)
         
         logger.info(f"Task ID: {problem_name['task_id']}: Merged tests using LLM")
         logger.debug(f"Tests: {test_sets_str}")
@@ -92,8 +107,10 @@ Reference Implementation:
     
     except Exception as e:
         logger.error(f"Error merging tests with LLM: {e}")
-        print(f"Error merging tests with LLM: {e}")
         time.sleep(10)
         # Fallback to concat strategy if LLM fails
         logger.warning("Falling back to concat strategy")
-        return merge_tests_concat(valid_test_sets), 0, 0
+        fallback = merge_tests_concat(valid_test_sets)
+        _write_debug_file(debug_mode, debug_dir, "llm_single_error.txt", str(e))
+        _write_debug_file(debug_mode, debug_dir, "llm_single_fallback_tests.py", fallback)
+        return fallback, 0, 0
