@@ -5,6 +5,7 @@ import multiprocessing
 import queue as queue_module
 import time
 import concurrent.futures
+import json
 
 from llm30.pipeline.QAagent.agents.process_handler import QAagentProcessHandler
 
@@ -19,6 +20,7 @@ from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create
     write_summary, write_details, ensure_stream_handler
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
+from llm30.pipeline.QAagent.agents.judge_agent import judge_test_suites
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 
@@ -35,11 +37,12 @@ def save_all_agents_results(log_folder, problem_id, agent_results):
             f.write(content if isinstance(content, str) else str(content))
 
     problem_folder = os.path.join(log_folder, f'problem_{problem_id}')
-    os.makedirs(problem_folder, exist_ok=True)
+    competitive_folder = os.path.join(problem_folder, 'competitive_artifacts')
+    os.makedirs(competitive_folder, exist_ok=True)
 
     for agent in agent_results:
         agent_index = agent["agent_index"] + 1  # 1-based index for readability
-        agent_folder = os.path.join(problem_folder, f'agent_{agent_index}')
+        agent_folder = os.path.join(competitive_folder, f'agent_{agent_index}')
         os.makedirs(agent_folder, exist_ok=True)
 
         # Save plan and tests
@@ -48,20 +51,22 @@ def save_all_agents_results(log_folder, problem_id, agent_results):
 
         # Save metrics in a more readable format
         metrics = (
-            f"first_five_coverage: {agent['first_five_coverage']}\n"
-            f"total_coverage: {agent['total_coverage']}\n"
-            f"accuracy: {agent['accuracy']}\n"
+            f"first_five_coverage: {agent.get('first_five_coverage', 'N/A')}\n"
+            f"total_coverage: {agent.get('total_coverage', 'N/A')}\n"
+            f"accuracy: {agent.get('accuracy', 'N/A')}\n"
             f"input_tokens: {agent['input_tokens']}\n"
             f"output_tokens: {agent['output_tokens']}\n"
+            f"is_selected: {agent.get('is_selected', False)}\n"
+            f"llm_score: {agent.get('llm_score', 'N/A')}\n"
         )
         write_text_file(agent_folder, 'metrics.txt', metrics)
 
         # Save coverage reports
-        write_text_file(agent_folder, 'first_five_coverage_report.txt', agent["first_five_coverage_report"])
-        write_text_file(agent_folder, 'total_coverage_report.txt', agent["total_coverage_report"])
+        write_text_file(agent_folder, 'first_five_coverage_report.txt', agent.get("first_five_coverage_report", "N/A"))
+        write_text_file(agent_folder, 'total_coverage_report.txt', agent.get("total_coverage_report", "N/A"))
 
         # Save test results (pretty JSON if possible)
-        test_results = agent["test_results"]
+        test_results = agent.get("test_results", "N/A")
         try:
             test_results_str = json.dumps(test_results, indent=2, ensure_ascii=False)
         except Exception:
@@ -114,35 +119,130 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
             continue
         total_input_tokens += test_input_tokens
         total_output_tokens += test_output_tokens
-        logger.info(f'Checking code coverage for problem ID {problem_id} (agent {i + 1})')
-        first_five_coverage_report, total_coverage_report = get_coverage(
-            add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"],
-            tests, problem_id, log_folder
-        )
-        problem_folder = os.path.join(log_folder, f'problem_{problem_id}')
-        accuracy, test_results = get_accuracy(
-            add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"],
-            tests, problem_folder, problem_id
-        )
-        first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
         agent_results.append({
             "plan": plan,
             "tests": tests,
-            "first_five_coverage_report": first_five_coverage_report,
-            "total_coverage_report": total_coverage_report,
-            "first_five_coverage": first_five_coverage,
-            "total_coverage": total_coverage,
-            "accuracy": accuracy,
-            "test_results": test_results,
             "input_tokens": plan_input_tokens + test_input_tokens,
             "output_tokens": plan_output_tokens + test_output_tokens,
             "agent_index": i
         })
     if not agent_results:
         return 0, 0, 0, total_input_tokens, total_output_tokens
-    # Save all agent results before selecting the best
+
+    # Black-box selection: choose the test suite only via LLM judgment (no coverage/accuracy in selection).
+    judge_prompt_path = (metadata or {}).get("judge_prompt_path")
+    judge_data = {}
+    if judge_prompt_path:
+        try:
+            best_idx, selection_reason, ranking, judge_input_tokens, judge_output_tokens, judge_data = judge_test_suites(
+                problem_name=problem_name,
+                candidates=agent_results,
+                prompt_path=judge_prompt_path,
+                model=model_name,
+                logger=logger,
+            )
+            for item in ranking:
+                if isinstance(item, dict):
+                    candidate_num = item.get("candidate")
+                    score = item.get("score")
+                    if isinstance(candidate_num, int) and 1 <= candidate_num <= len(agent_results):
+                        agent_results[candidate_num - 1]["llm_score"] = score
+        except Exception as e:
+            logger.error(f"Judge agent failed, fallback to first valid agent: {e}")
+            best_idx = 0
+            selection_reason = f"Fallback selection (agent 1) due to judge error: {e}"
+            judge_input_tokens = 0
+            judge_output_tokens = 0
+    else:
+        logger.warning("Judge prompt path not provided. Falling back to agent 1.")
+        best_idx = 0
+        selection_reason = "Fallback selection (agent 1): judge prompt missing."
+        judge_input_tokens = 0
+        judge_output_tokens = 0
+
+    total_input_tokens += judge_input_tokens
+    total_output_tokens += judge_output_tokens
+    best_agent = agent_results[best_idx]
+    best_agent["is_selected"] = True
+
+    problem_folder = os.path.join(log_folder, f'problem_{problem_id}')
+    os.makedirs(problem_folder, exist_ok=True)
+    competitive_folder = os.path.join(problem_folder, "competitive_artifacts")
+    os.makedirs(competitive_folder, exist_ok=True)
+    with open(os.path.join(competitive_folder, "llm_selection.json"), "w") as f:
+        json.dump(
+            {
+                "selected_agent": best_idx + 1,
+                "selection_reason": selection_reason,
+                "judge_raw": judge_data,
+            },
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
+
+    logger.info(
+        f"Judge selected pipeline {best_idx + 1} for problem {problem_id}: {selection_reason}"
+    )
+
+    # Evaluate selected suite after selection for reporting metrics.
+    canonical_solution = (
+        add_canonical_solution(problem_name) if dataset == "humaneval"
+        else problem_name["canonical_solution"]
+    )
+    first_five_coverage_report, total_coverage_report = get_coverage(
+        canonical_solution,
+        best_agent["tests"],
+        problem_id,
+        log_folder
+    )
+    accuracy, test_results = get_accuracy(
+        canonical_solution,
+        best_agent["tests"],
+        problem_folder,
+        problem_id
+    )
+    first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
+
+    best_agent["first_five_coverage_report"] = first_five_coverage_report
+    best_agent["total_coverage_report"] = total_coverage_report
+    best_agent["first_five_coverage"] = first_five_coverage
+    best_agent["total_coverage"] = total_coverage
+    best_agent["accuracy"] = accuracy
+    best_agent["test_results"] = test_results
+
+    # Analysis-only metrics for all non-selected candidates.
+    # This does not affect selection and keeps the decision black-box.
+    for idx, agent in enumerate(agent_results):
+        if idx == best_idx:
+            continue
+        candidate_eval_id = f"{problem_id.replace('/', '_')}_candidate_{idx + 1}"
+        analysis_root = os.path.join(competitive_folder, "eval_workspace")
+        os.makedirs(analysis_root, exist_ok=True)
+        candidate_folder = os.path.join(analysis_root, f"problem_{candidate_eval_id}")
+        candidate_first_five_report, candidate_total_report = get_coverage(
+            canonical_solution,
+            agent["tests"],
+            candidate_eval_id,
+            analysis_root
+        )
+        candidate_accuracy, candidate_test_results = get_accuracy(
+            canonical_solution,
+            agent["tests"],
+            candidate_folder,
+            candidate_eval_id
+        )
+        candidate_first_five, candidate_total = extract_coverage_percentages(candidate_folder, problem_name)
+
+        agent["first_five_coverage_report"] = candidate_first_five_report
+        agent["total_coverage_report"] = candidate_total_report
+        agent["first_five_coverage"] = candidate_first_five
+        agent["total_coverage"] = candidate_total
+        agent["accuracy"] = candidate_accuracy
+        agent["test_results"] = candidate_test_results
+
+    # Save all agent artifacts (selected one also contains computed metrics).
     save_all_agents_results(log_folder, problem_id, agent_results)
-    best_agent = max(agent_results, key=lambda x: (x["total_coverage"], x["accuracy"]))
     write_plan_and_tests_qa(log_folder, problem_id, best_agent["plan"], best_agent["tests"])
     log_results(
         os.path.join(log_folder, f'problem_{problem_id}'),
@@ -163,7 +263,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt,
-                                logger,
+                                logger, judge_prompt_path=None,
                                 timeout_seconds=180, max_attempts=3):
     try:
         agent_processor = QAagentProcessHandler(
@@ -178,7 +278,10 @@ def process_problem_competitive(problem, model, dataset, log_folder, code_archit
             max_attempts=max_attempts,
             run_qaagent_function=competitive_qaAgent
         )
-        result = agent_processor.run()
+        metadata = {
+            "judge_prompt_path": judge_prompt_path
+        }
+        result = agent_processor.run(metadata=metadata)
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
         curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result
@@ -203,7 +306,7 @@ def main(argv=None) -> int:
     # Setup
     model = args.model
     dataset = args.dataset
-    log_folder = create_log_folder(prefix="QAagent_competitive")
+    log_folder = create_log_folder(dataset=dataset, model=model, prefix="QAagent_competitive")
     logger = setup_logger(log_folder)
     ensure_stream_handler(logger)
 
@@ -225,16 +328,19 @@ def main(argv=None) -> int:
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
             "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1",
                                                     "test_generator_humaneval_prompt_original.txt"),
+            "judge": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
         },
         "mbpp": {
             "code_architect": [os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_mbpp_prompt.txt"),
+            "judge": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
         }
     }
     code_architect_prompts = prompt_paths[args.dataset]["code_architect"]
     test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
     if args.generator_prompt == "original":
         test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
+    judge_prompt_path = prompt_paths[args.dataset].get("judge")
     dataset_map = {
         "humaneval": os.path.join(pipeline_dir, "datasets", "humaneval", "problems.jsonl"),
         "mbpp": os.path.join(pipeline_dir, "datasets", "mbpp", "problems.jsonl")
@@ -282,6 +388,7 @@ def main(argv=None) -> int:
                 code_architect_prompts,
                 test_generator_prompt,
                 logger,
+                judge_prompt_path,
             ): i
             for i in range(start_index, end_index)
         }
