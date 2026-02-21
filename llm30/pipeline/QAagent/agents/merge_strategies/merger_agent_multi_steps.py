@@ -116,7 +116,6 @@ Reference Implementation:
 
 def _build_aggregate_prompt(aggregate_prompt_template, problem_name, plan, filtered_results):
     entry_point = problem_name.get("entry_point", "")
-    reference_impl = problem_name.get("canonical_solution", "")
 
     suites_payload = []
     for item in filtered_results:
@@ -142,10 +141,6 @@ Filtered Tests:
 
 Entry Point: `{entry_point}`
 
-Reference Implementation:
-```python
-{reference_impl}
-```
 
 ## Plan:
 ```
