@@ -84,7 +84,6 @@ def _extract_reasoning_and_tests(response_text):
 
 def _build_filter_prompt(filter_prompt_template, problem_name, plan, tests, suite_idx):
     entry_point = problem_name.get("entry_point", "")
-    reference_impl = problem_name.get("canonical_solution", "")
 
     return f"""{filter_prompt_template}
 
@@ -95,10 +94,6 @@ def _build_filter_prompt(filter_prompt_template, problem_name, plan, tests, suit
 
 Entry Point: `{entry_point}`
 
-Reference Implementation:
-```python
-{reference_impl}
-```
 
 ## Plan:
 ```
