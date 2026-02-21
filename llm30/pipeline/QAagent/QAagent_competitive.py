@@ -6,6 +6,7 @@ import queue as queue_module
 import time
 import concurrent.futures
 import json
+import re
 
 from llm30.pipeline.QAagent.agents.process_handler import QAagentProcessHandler
 
@@ -23,6 +24,18 @@ from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_cod
 from llm30.pipeline.QAagent.agents.judge_agent import judge_single_test_suite
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
+
+
+def _test_suite_heuristic_score(tests: str):
+    if not tests:
+        return 0, 0, 0
+    lines = tests.splitlines()
+    assert_lines = [line.strip() for line in lines if line.strip().startswith("assert ")]
+    unique_asserts = len(set(assert_lines))
+    total_asserts = len(assert_lines)
+    literal_tokens = set(re.findall(r"(?:'[^']*'|\"[^\"]*\"|\b\d+\b)", tests))
+    literal_count = len(literal_tokens)
+    return unique_asserts, literal_count, total_asserts
 
 
 def save_all_agents_results(log_folder, problem_id, agent_results):
@@ -160,12 +173,24 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
     if not agent_results:
         return 0, 0, 0, total_input_tokens, total_output_tokens
 
-    # Black-box selection: choose by maximum LLM score.
+    # Black-box selection: choose by maximum LLM score with a static tiebreaker.
     valid_scores = [item for item in ranking if isinstance(item.get("score"), (int, float))]
     if valid_scores:
-        best_item = max(valid_scores, key=lambda x: x["score"])
-        best_idx = int(best_item["candidate"]) - 1
-        selection_reason = str(best_item["reason"])
+        best_score = max(item["score"] for item in valid_scores)
+        top_items = [item for item in valid_scores if item["score"] == best_score]
+        if len(top_items) == 1:
+            best_item = top_items[0]
+            best_idx = int(best_item["candidate"]) - 1
+            selection_reason = str(best_item["reason"])
+        else:
+            tied = []
+            for item in top_items:
+                idx = int(item["candidate"]) - 1
+                heuristic = _test_suite_heuristic_score(agent_results[idx]["tests"])
+                tied.append((heuristic, -idx, item))
+            best_heuristic, _, best_item = max(tied, key=lambda x: (x[0], x[1]))
+            best_idx = int(best_item["candidate"]) - 1
+            selection_reason = f"{best_item['reason']} (tie-breaker: heuristic={best_heuristic})"
     elif not judge_prompt_path:
         logger.warning("Judge prompt path not provided. Falling back to agent 1.")
         best_idx = 0
