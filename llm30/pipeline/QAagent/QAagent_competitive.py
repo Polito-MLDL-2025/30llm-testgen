@@ -20,7 +20,7 @@ from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create
     write_summary, write_details, ensure_stream_handler
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
-from llm30.pipeline.QAagent.agents.judge_agent import judge_test_suites
+from llm30.pipeline.QAagent.agents.judge_agent import judge_single_test_suite
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 
@@ -107,6 +107,12 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
     agent_results = []
     total_input_tokens = 0
     total_output_tokens = 0
+    judge_prompt_path = (metadata or {}).get("judge_prompt_path")
+    judge_data = {"candidates": []}
+    ranking = []
+    judge_input_tokens = 0
+    judge_output_tokens = 0
+
     for i, code_architect_prompt in enumerate(code_architect_prompts):
         plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name,
                                                                     logger)
@@ -119,46 +125,55 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
             continue
         total_input_tokens += test_input_tokens
         total_output_tokens += test_output_tokens
-        agent_results.append({
+        agent = {
             "plan": plan,
             "tests": tests,
             "input_tokens": plan_input_tokens + test_input_tokens,
             "output_tokens": plan_output_tokens + test_output_tokens,
             "agent_index": i
-        })
+        }
+
+        # Judge each pipeline output immediately after generation.
+        if judge_prompt_path:
+            try:
+                score, reason, in_toks, out_toks, raw = judge_single_test_suite(
+                    problem_name=problem_name,
+                    candidate=agent,
+                    prompt_path=judge_prompt_path,
+                    model=model_name,
+                    logger=logger,
+                    candidate_idx=i + 1,
+                )
+                judge_input_tokens += in_toks
+                judge_output_tokens += out_toks
+                agent["llm_score"] = score
+                ranking.append({"candidate": i + 1, "score": score, "reason": reason})
+                judge_data["candidates"].append({"candidate": i + 1, "raw": raw})
+            except Exception as e:
+                logger.error(f"Judge agent failed for candidate {i + 1}: {e}")
+                agent["llm_score"] = None
+                ranking.append({"candidate": i + 1, "score": None, "reason": f"judge_error: {e}"})
+        else:
+            agent["llm_score"] = None
+
+        agent_results.append(agent)
     if not agent_results:
         return 0, 0, 0, total_input_tokens, total_output_tokens
 
-    # Black-box selection: choose the test suite only via LLM judgment (no coverage/accuracy in selection).
-    judge_prompt_path = (metadata or {}).get("judge_prompt_path")
-    judge_data = {}
-    if judge_prompt_path:
-        try:
-            best_idx, selection_reason, ranking, judge_input_tokens, judge_output_tokens, judge_data = judge_test_suites(
-                problem_name=problem_name,
-                candidates=agent_results,
-                prompt_path=judge_prompt_path,
-                model=model_name,
-                logger=logger,
-            )
-            for item in ranking:
-                if isinstance(item, dict):
-                    candidate_num = item.get("candidate")
-                    score = item.get("score")
-                    if isinstance(candidate_num, int) and 1 <= candidate_num <= len(agent_results):
-                        agent_results[candidate_num - 1]["llm_score"] = score
-        except Exception as e:
-            logger.error(f"Judge agent failed, fallback to first valid agent: {e}")
-            best_idx = 0
-            selection_reason = f"Fallback selection (agent 1) due to judge error: {e}"
-            judge_input_tokens = 0
-            judge_output_tokens = 0
-    else:
+    # Black-box selection: choose by maximum LLM score.
+    valid_scores = [item for item in ranking if isinstance(item.get("score"), (int, float))]
+    if valid_scores:
+        best_item = max(valid_scores, key=lambda x: x["score"])
+        best_idx = int(best_item["candidate"]) - 1
+        selection_reason = str(best_item["reason"])
+    elif not judge_prompt_path:
         logger.warning("Judge prompt path not provided. Falling back to agent 1.")
         best_idx = 0
         selection_reason = "Fallback selection (agent 1): judge prompt missing."
-        judge_input_tokens = 0
-        judge_output_tokens = 0
+    else:
+        logger.warning("No valid judge scores available. Falling back to agent 1.")
+        best_idx = 0
+        selection_reason = "Fallback selection (agent 1): no valid judge score."
 
     total_input_tokens += judge_input_tokens
     total_output_tokens += judge_output_tokens
@@ -264,7 +279,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt,
                                 logger, judge_prompt_path=None,
-                                timeout_seconds=180, max_attempts=3):
+                                timeout_seconds=300, max_attempts=3):
     try:
         agent_processor = QAagentProcessHandler(
             problem=problem,

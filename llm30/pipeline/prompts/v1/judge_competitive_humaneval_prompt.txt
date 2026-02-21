@@ -1,9 +1,9 @@
 You are an expert in evaluating black-box unit test suites for code generation benchmarks.
 
-You will receive one programming problem statement and multiple candidate test suites
-(each candidate also includes its pseudocode).
+You will receive one programming problem statement, an entry point, and one
+candidate test suite.
 
-Your task is to select the candidate that gives the strongest overall test suite.
+Your task is to evaluate this candidate in isolation and assign an absolute quality score.
 Look at the suite as a whole: depth, conceptual coverage, precision of assertions,
 ability to expose realistic bugs, and practical usefulness for validating an implementation.
 
@@ -23,9 +23,6 @@ Penalize suites containing suspicious or fragile tests, including:
 
 Return ONLY valid JSON with this exact schema:
 {
-  "selected_candidate": <integer>,
-  "selection_reason": "<short reason>",
-  "ranking": [
-    {"candidate": 1, "score": <0-100 number>, "reason": "<short reason>"}
-  ]
+  "score": <0-100 number>,
+  "reason": "<short reason>"
 }
