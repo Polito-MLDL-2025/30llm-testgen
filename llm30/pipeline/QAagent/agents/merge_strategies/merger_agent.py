@@ -45,42 +45,24 @@ def merge_tests_llm(test_sets, problem_name, plan, prompt_path, model, logger):
         test_sets_str += f"\n## Test Set {i}:\n```python\n{tests}\n```\n"
 
     entry_point = problem_name.get("entry_point", "")
-    reference_impl = problem_name.get("canonical_solution", "")
 
     full_merger_prompt = f"""{merger_prompt}
 
-## Problem Prompt:
-```
-{problem_name['prompt']}
-```
-
 Entry Point: `{entry_point}`
-
-Reference Implementation:
-```python
-{reference_impl}
-```
-
-## Plan:
-```
-{plan}
-```
 
 {test_sets_str}
 
 ## Merged Test Set:
 """
-    print("--"*100)
-    print("Full merger prompt constructed.")
-    print(full_merger_prompt)
-    print("--"*100)
     messages = [
         {"role": "system", "content": "You are a software programmer."},
         {"role": "user", "content": full_merger_prompt}
     ]
     
     try:
-        merged_tests_response, input_token_count, output_token_count = call_and_handle(messages, model)
+        # Use timeout shorter than process handler timeout to ensure exception is raised and caught
+        # This allows fallback to concat strategy instead of process being killed
+        merged_tests_response, input_token_count, output_token_count = call_and_handle(messages, model, timeout=180)
         merged_tests = process_block(merged_tests_response.choices[0].message.content)
         
         logger.info(f"Task ID: {problem_name['task_id']}: Merged tests using LLM")
