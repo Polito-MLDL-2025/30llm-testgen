@@ -198,7 +198,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
 
 
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
-                    merge_strategy="concat", merger_prompt_path=None, timeout_seconds=180, max_attempts=3):
+                    merge_strategy="concat", merger_prompt_path=None, timeout_seconds=700, max_attempts=3):
     try:
 
         agent_processor = QAagentProcessHandler(

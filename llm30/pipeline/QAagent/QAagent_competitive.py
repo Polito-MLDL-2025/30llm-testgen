@@ -164,7 +164,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt,
                                 logger,
-                                timeout_seconds=180, max_attempts=3):
+                                timeout_seconds=700, max_attempts=3):
     try:
         agent_processor = QAagentProcessHandler(
             problem=problem,
