@@ -66,10 +66,11 @@ def create_log_folder(dataset=None, model=None,prefix='QAagent'):
     return log_folder
 
 
-def setup_logger(log_folder):
+def setup_logger(log_folder, debug_mode=False):
     """Sets up the logger to log into the timestamped folder."""
     logger = logging.getLogger('MultiAgentLogger')
-    logger.setLevel(logging.INFO)
+    logger_level = logging.DEBUG if debug_mode else logging.INFO
+    logger.setLevel(logger_level)
 
     if logger.handlers:
         for handler in list(logger.handlers):
@@ -77,7 +78,7 @@ def setup_logger(log_folder):
             handler.close()
 
     file_handler = logging.FileHandler(os.path.join(log_folder, 'pipeline.log'))
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logger_level)
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
