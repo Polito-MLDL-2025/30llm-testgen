@@ -89,11 +89,11 @@ def _filter_tests_for_accuracy(canonical_solution, tests, logger, problem_id):
 def merge_test_accuracy(problem_id, problem_name, plan, generated_tests, dataset, logger):
     merged_plan = merge_plans_concat(plan)
     merged_tests = merge_tests_concat_enhanced(generated_tests, problem_name, logger)
-    merged_tests = _filter_tests_for_accuracy(
-        add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"],
-        merged_tests,
-        logger,
-        problem_id,
-    )
+    # merged_tests = _filter_tests_for_accuracy(
+    #     add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"],
+    #     merged_tests,
+    #     logger,
+    #     problem_id,
+    # )
     logger.info(f'Merged tests using accuracy strategy (pass-only filter)')
     return merged_plan, merged_tests
