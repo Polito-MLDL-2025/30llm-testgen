@@ -98,7 +98,7 @@ def singleAgent(problem_name, dataset, model_name, code_architect_prompt, test_g
     return first_five_coverage, total_coverage, accuracy, num_input_tokens, num_output_tokens
 
 
-def process_problem(problem, model, dataset, log_folder, test_generator_prompt, logger, timeout_seconds=180,
+def process_problem(problem, model, dataset, log_folder, test_generator_prompt, logger, timeout_seconds=700,
                     max_attempts=3):
     """
     Process a single problem using the SingleAgent approach.
