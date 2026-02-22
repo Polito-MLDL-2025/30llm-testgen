@@ -8,13 +8,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     # Ensure local imports work when running via "python scripts/...".
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
 
 def sanitize_name(value: str) -> str:
     return value.replace("/", "_").replace(":", "_").replace(" ", "_")
@@ -159,7 +159,7 @@ def main(argv=None) -> int:
     generator_prompts = ("default", "original")
     # generator_prompts = [ "original"]
     merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
-    # merge_strategies = ("concat", "concat-enhanced", "llm", "accuracy")
+    # merge_strategies = ("concat",  "llm_multi_steps")
     # merge_strategies = ["llm"]
 
     for generator_prompt in generator_prompts:

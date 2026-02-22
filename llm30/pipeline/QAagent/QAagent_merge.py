@@ -5,6 +5,7 @@ import concurrent.futures
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_accuracy import merge_test_accuracy
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_agent_multi_steps import merge_tests_llm_multi_steps
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_concat import merge_plans_concat, merge_tests_concat_enhanced
+from llm30.pipeline.QAagent.utils.filter_timeout_exe import filter_timeout_exe_test
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
@@ -19,7 +20,7 @@ from llm30.pipeline.QAagent.utils.logging import (
     setup_logger,
     log_results,
     write_summary,
-    write_details, ensure_stream_handler,
+    write_details, ensure_stream_handler, write_timeout_tests_qa,
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
@@ -104,7 +105,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     try:
         for i in range(len(plan)):
             logger.info(f"Step: test generation start for agent {i + 1}/{len(plan)}")
-            tests, test_input_tokens, test_output_tokens = generate_tests(
+            original_tests, test_input_tokens, test_output_tokens = generate_tests(
                 problem_name,
                 plan[i],
                 test_generator_prompt,
@@ -112,12 +113,12 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
                 logger,
                 agent_index=i + 1,
             )
-            generated_tests.append(tests)
+            generated_tests.append(original_tests)
             _write_merge_debug_file(
                 debug_mode,
                 debug_dir,
                 f"generated_tests_agent_{i + 1:02d}.py",
-                tests,
+                original_tests,
             )
             num_input_tokens += test_input_tokens
             num_output_tokens += test_output_tokens
@@ -213,6 +214,21 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     )
 
     # log plan/pseudocode and tests
+    filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
+        canonical_solution=(
+            add_canonical_solution(problem_name)
+            if dataset == "humaneval"
+            else problem_name["canonical_solution"]
+        ),
+        tests=merged_tests,
+        problem_id=problem_id,
+        log_folder=log_folder,
+    )
+
+    write_timeout_tests_qa(log_folder, problem_id, timed_out_tests, original_tests)
+
+    merged_tests = filtered_tests
+
     write_plan_and_tests_qa(log_folder, problem_id, merged_plan, merged_tests)
     logger.info(f"Step: wrote merged artifacts for problem ID {problem_id}")
 

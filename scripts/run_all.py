@@ -12,8 +12,14 @@ Each script runs multiple configurations with multiple runs per configuration.
 """
 import argparse
 import importlib.util
+import sys
 from datetime import datetime
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    # Ensure local imports work when running via "python scripts/...".
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.utils.get_parser import config_run_agent_parser
 

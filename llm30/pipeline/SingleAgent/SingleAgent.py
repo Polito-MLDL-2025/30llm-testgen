@@ -2,6 +2,9 @@ import os
 import sys
 import concurrent.futures
 
+from llm30.pipeline.QAagent.utils.filter_timeout_exe import filter_timeout_exe_test
+from llm30.pipeline.QAagent.utils.logging import write_timeout_tests_qa
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
     # Allow running this file directly from any working directory.
@@ -67,6 +70,14 @@ def singleAgent(problem_name, dataset, model_name, code_architect_prompt, test_g
 
     # Check the code coverage of the generated tests
     logger.info(f'Checking code coverage for problem ID {problem_id}')
+
+    filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
+        add_canonical_solution(problem_name) if dataset == "humaneval" else problem_name["canonical_solution"],
+        generated_tests, problem_id, log_folder)
+
+    write_timeout_tests_qa(log_folder, problem_id, timed_out_tests, original_tests)
+
+    generated_tests = filtered_tests
 
     # Get coverage reports
     first_five_coverage_report, total_coverage_report = get_coverage(
