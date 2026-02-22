@@ -52,7 +52,7 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
 
 
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
-                    timeout_seconds=180, max_attempts=3):
+                    timeout_seconds=700, max_attempts=3):
     try:
         result = qaAgent(
             problem_name=problem,

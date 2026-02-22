@@ -153,17 +153,10 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         else:
             # Pass the merged plan (all plans concatenated) to provide full context
             merged_tests, merge_input_tokens, merge_output_tokens = merge_tests_llm(
-                generated_tests,
-                problem_name,
-                merged_plan,
-                merger_prompt_path,
-                model_name,
-                logger,
-                debug_mode=debug_mode,
-                debug_dir=debug_dir,
+                generated_tests, problem_name, merged_plan, merger_prompt_path, model_name, logger
             )
             num_input_tokens += merge_input_tokens
-            num_output_tokens += merge_output_tokens
+            num_output_tokens += merge_output_tokens 
             logger.info(f'Merged tests using LLM strategy')
     elif merge_strategy == "llm_multi_steps":
         merged_plan = merge_plans_concat(plan)
