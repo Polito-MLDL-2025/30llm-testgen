@@ -5,7 +5,7 @@ import sys
 
 from llm30.pipeline.QAagent.utils.extract_assert_block import extract_assert_blocks
 
-DEFAULT_TEST_TIMEOUT_SECONDS = 10.0
+DEFAULT_TEST_TIMEOUT_SECONDS = 60.0
 TEST_TIMEOUT_ENV = "QAAGENT_TEST_TIMEOUT_SECONDS"
 
 

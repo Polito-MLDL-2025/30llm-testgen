@@ -156,10 +156,10 @@ def main(argv=None) -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    generator_prompts = ("default", "original")
-    # generator_prompts = [ "original"]
-    merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
-    # merge_strategies = ("concat",  "llm_multi_steps")
+    # generator_prompts = ("default", "original")
+    generator_prompts = [ "original","default"]
+    # merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
+    merge_strategies = ("accuracy",  "llm_multi_steps")
     # merge_strategies = ["llm"]
 
     for generator_prompt in generator_prompts:
