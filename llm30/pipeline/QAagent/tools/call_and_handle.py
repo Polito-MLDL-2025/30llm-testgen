@@ -3,6 +3,7 @@ import time
 import logging
 import threading
 import random
+import uuid
 from contextlib import contextmanager
 
 try:
@@ -30,10 +31,11 @@ client = OpenAI(base_url=os.getenv("OPENAI_URL_BASE"), api_key=os.getenv("OPENAI
 
 CALL_POOL_SIZE_ENV = "OPENAI_MAX_CONCURRENT_REQUESTS"
 CALL_POOL_DIR_ENV = "OPENAI_CALL_POOL_DIR"
+CALL_POOL_RUN_ID_ENV = "OPENAI_CALL_POOL_RUN_ID"
 CALL_POOL_WAIT_SECONDS_ENV = "OPENAI_CALL_POOL_WAIT_SECONDS"
 
 DEFAULT_CALL_POOL_SIZE = 4
-DEFAULT_CALL_POOL_DIR = "/tmp/llm30_openai_call_pool"
+DEFAULT_CALL_POOL_DIR = os.path.join(os.getcwd(), "temp", "llm30_openai_call_pool")
 DEFAULT_CALL_POOL_WAIT_SECONDS = 0.5
 
 _call_pool_config_lock = threading.Lock()
@@ -44,6 +46,23 @@ _call_pool_wait_seconds = None
 _thread_pool_lock = threading.Lock()
 _thread_pool_size = None
 _thread_pool = None
+
+
+def _create_run_pool_id() -> str:
+    return f"run_{int(time.time())}_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+
+
+def _get_or_init_run_pool_id() -> str:
+    run_pool_id = os.getenv(CALL_POOL_RUN_ID_ENV)
+    if run_pool_id and run_pool_id.strip():
+        return run_pool_id.strip()
+    run_pool_id = _create_run_pool_id()
+    os.environ[CALL_POOL_RUN_ID_ENV] = run_pool_id
+    return run_pool_id
+
+
+# Initialize once so child processes spawned later inherit the same pool subfolder id.
+_get_or_init_run_pool_id()
 
 
 def _read_positive_int_env(env_name: str, default: int) -> int:
@@ -92,15 +111,18 @@ def _get_call_pool_config():
     with _call_pool_config_lock:
         if _call_pool_size is None:
             _call_pool_size = _read_positive_int_env(CALL_POOL_SIZE_ENV, DEFAULT_CALL_POOL_SIZE)
-            _call_pool_dir = os.getenv(CALL_POOL_DIR_ENV, DEFAULT_CALL_POOL_DIR)
+            base_pool_dir = os.getenv(CALL_POOL_DIR_ENV, DEFAULT_CALL_POOL_DIR)
+            run_pool_id = _get_or_init_run_pool_id()
+            _call_pool_dir = os.path.join(base_pool_dir, run_pool_id)
             _call_pool_wait_seconds = _read_positive_float_env(
                 CALL_POOL_WAIT_SECONDS_ENV,
                 DEFAULT_CALL_POOL_WAIT_SECONDS,
             )
             logger.info(
-                "OpenAI call pool configured: size=%s, dir=%s, wait=%.2fs",
+                "OpenAI call pool configured: size=%s, dir=%s, run_id=%s, wait=%.2fs",
                 _call_pool_size,
                 _call_pool_dir,
+                run_pool_id,
                 _call_pool_wait_seconds,
             )
 
