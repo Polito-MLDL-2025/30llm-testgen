@@ -60,7 +60,7 @@ Entry Point: `{entry_point}`
     ]
     
     try:
-        merged_tests_response, input_token_count, output_token_count = call_and_handle(messages, model)
+        merged_tests_response, input_token_count, output_token_count = call_and_handle(messages, model, timeout=120)
         merged_tests = process_block(merged_tests_response.choices[0].message.content)
         
         logger.info(f"Task ID: {problem_name['task_id']}: Merged tests using LLM")
