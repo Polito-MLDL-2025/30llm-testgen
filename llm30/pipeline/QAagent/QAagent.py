@@ -2,6 +2,7 @@ import os
 import sys
 import concurrent.futures
 
+from llm30.pipeline.QAagent.utils.filter_timeout_exe import filter_timeout_exe_test
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
@@ -16,7 +17,7 @@ from llm30.pipeline.QAagent.utils.logging import (
     setup_logger,
     log_results,
     write_summary,
-    write_details, ensure_stream_handler,
+    write_details, ensure_stream_handler, write_timeout_tests_qa,
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
@@ -100,6 +101,21 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         num_output_tokens += test_output_tokens
     except Exception:
         return 0, 0, 0, 0, 0
+
+    filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
+        canonical_solution=(
+            add_canonical_solution(problem_name)
+            if dataset == "humaneval"
+            else problem_name["canonical_solution"]
+        ),
+        tests=generated_tests,
+        problem_id=problem_id,
+        log_folder=log_folder,
+    )
+
+    write_timeout_tests_qa(log_folder, problem_id, timed_out_tests, original_tests)
+
+    generated_tests = filtered_tests
 
     # log plan/pseudocode and tests
     write_plan_and_tests_qa(log_folder, problem_id, plan, generated_tests)

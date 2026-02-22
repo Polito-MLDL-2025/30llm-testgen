@@ -4,6 +4,7 @@ import concurrent.futures
 import json
 import re
 
+from llm30.pipeline.QAagent.utils.filter_timeout_exe import filter_timeout_exe_test
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
@@ -13,7 +14,7 @@ if PROJECT_ROOT not in sys.path:
 from llm30.pipeline.QAagent.utils.utils import read_problems, add_plan, add_canonical_solution, parse_args, \
     update_total_stats
 from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create_log_folder, setup_logger, log_results, \
-    write_summary, write_details, ensure_stream_handler
+    write_summary, write_details, ensure_stream_handler, write_timeout_tests_qa
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
 from llm30.pipeline.QAagent.agents.judge_agent import judge_single_test_suite
@@ -225,15 +226,31 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
         add_canonical_solution(problem_name) if dataset == "humaneval"
         else problem_name["canonical_solution"]
     )
+    best_generated_tests =best_agent["tests"]
+    filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
+        canonical_solution=(
+            add_canonical_solution(problem_name)
+            if dataset == "humaneval"
+            else problem_name["canonical_solution"]
+        ),
+        tests=best_generated_tests,
+        problem_id=problem_id,
+        log_folder=log_folder,
+    )
+
+    write_timeout_tests_qa(log_folder, problem_id, timed_out_tests, original_tests)
+
+    best_generated_tests = filtered_tests
+
     first_five_coverage_report, total_coverage_report = get_coverage(
         canonical_solution,
-        best_agent["tests"],
+        best_generated_tests,
         problem_id,
         log_folder
     )
     accuracy, test_results = get_accuracy(
         canonical_solution,
-        best_agent["tests"],
+        best_generated_tests,
         problem_folder,
         problem_id
     )
@@ -255,15 +272,31 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
         analysis_root = os.path.join(competitive_folder, "eval_workspace")
         os.makedirs(analysis_root, exist_ok=True)
         candidate_folder = os.path.join(analysis_root, f"problem_{candidate_eval_id}")
+
+        generated_tests = agent["tests"]
+
+        filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
+            canonical_solution=(
+                add_canonical_solution(problem_name)
+                if dataset == "humaneval"
+                else problem_name["canonical_solution"]
+            ),
+            tests=generated_tests,
+            problem_id=problem_id,
+            log_folder=log_folder,
+        )
+
+        generated_tests = filtered_tests
+
         candidate_first_five_report, candidate_total_report = get_coverage(
             canonical_solution,
-            agent["tests"],
+            generated_tests,
             candidate_eval_id,
             analysis_root
         )
         candidate_accuracy, candidate_test_results = get_accuracy(
             canonical_solution,
-            agent["tests"],
+            generated_tests,
             candidate_folder,
             candidate_eval_id
         )
@@ -278,7 +311,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
     # Save all agent artifacts (selected one also contains computed metrics).
     save_all_agents_results(log_folder, problem_id, agent_results)
-    write_plan_and_tests_qa(log_folder, problem_id, best_agent["plan"], best_agent["tests"])
+    write_plan_and_tests_qa(log_folder, problem_id, best_agent["plan"], best_generated_tests)
     log_results(
         os.path.join(log_folder, f'problem_{problem_id}'),
         best_agent["first_five_coverage_report"],

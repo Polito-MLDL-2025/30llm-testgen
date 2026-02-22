@@ -14,6 +14,16 @@ def write_plan_and_tests_qa(log_folder, problem_id, pseudocode, tests):
 
     with open(os.path.join(result_folder, 'generated_tests.txt'), 'w') as f:
         f.write(tests)
+def write_timeout_tests_qa(log_folder, problem_id, timeout_tests,original_tests):
+    # Write results to files
+    result_folder = os.path.join(log_folder, f'problem_{problem_id}')
+    os.makedirs(result_folder, exist_ok=True)
+
+    with open(os.path.join(result_folder, 'timeout_tests.txt'), 'w') as f:
+        f.write(timeout_tests)
+
+    with open(os.path.join(result_folder, 'original_tests.txt'), 'w') as f:
+        f.write(original_tests)
 
 def sanitize_problem_id(problem_id):
     """
