@@ -166,9 +166,9 @@ def main(argv=None) -> int:
         "predefine_name": args.predefine_name,
     }
 
-    # generator_prompts = ("default", "original")
-    generator_prompts = [ "original","default"]
-    # merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
+    generator_prompts = ("default", "original")
+    # generator_prompts = [ "original","default"]
+    merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
     merge_strategies = ("accuracy",  "llm_multi_steps")
     # merge_strategies = ["llm"]
 
