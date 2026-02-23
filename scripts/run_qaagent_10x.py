@@ -83,7 +83,7 @@ def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> Non
     raise SystemExit(exit_code)
 
 
-def run_agent_main(argv: list[str], timeout_seconds: int = 500) -> None:
+def run_agent_main(argv: list[str], timeout_seconds: int = 600) -> None:
     attempt = 0
     while True:
         attempt += 1
