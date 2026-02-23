@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
+from scripts.utils.run_cache import build_cache_path, load_run_cache, save_run_cache
 
 def sanitize_name(value: str) -> str:
     return value.replace("/", "_").replace(":", "_").replace(" ", "_")
@@ -82,7 +83,7 @@ def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> Non
     raise SystemExit(exit_code)
 
 
-def run_agent_main(argv: list[str], timeout_seconds: int = 180) -> None:
+def run_agent_main(argv: list[str], timeout_seconds: int = 600) -> None:
     attempt = 0
     while True:
         attempt += 1
@@ -157,12 +158,45 @@ def main(argv=None) -> int:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    args_signature = {
+        "dataset": args.dataset,
+        "model": args.model,
+        "runs": args.runs,
+        "max_tasks": args.max_tasks,
+        "max_workers": args.max_workers,
+        "dataset_path": args.dataset_path,
+        "predefine_name": args.predefine_name,
+    }
 
     for generator_prompt in ("original", "default"):
         argv = build_argv_agent(args, generator_prompt)
+        cache_path = build_cache_path(
+            output_dir=output_dir,
+            script_id="run_qaagent_10x",
+            config_tag=generator_prompt,
+            args_signature=args_signature,
+        )
+        rows_by_run = {
+            run_idx: row
+            for run_idx, row in load_run_cache(cache_path).items()
+            if 1 <= run_idx <= args.runs
+        }
         rows: list[dict[str, str | int | float]] = []
 
         for run_idx in range(1, args.runs + 1):
+            cached_row = rows_by_run.get(run_idx)
+            if cached_row is not None:
+                rows.append(cached_row)
+                print(
+                    f"[{generator_prompt}] Run {run_idx}/{args.runs}: using cached result",
+                    flush=True,
+                )
+                print(f"  → Run {run_idx} cached: "
+                      f"Accuracy={float(cached_row['accuracy']):.2f}%, "
+                      f"Coverage={float(cached_row['first_five_coverage']):.2f}%→{float(cached_row['coverage']):.2f}%, "
+                      f"Tokens={int(cached_row['input_tokens'])}+{int(cached_row['output_tokens'])}")
+                continue
+
             before_logs = list_log_dirs(logs_root)
             print(
                 f"[{generator_prompt}] Run {run_idx}/{args.runs}: QAagent.main {' '.join(argv)}",
@@ -185,13 +219,14 @@ def main(argv=None) -> int:
                 raise FileNotFoundError(f"Missing summary file: {summary_path}")
 
             stats = parse_summary(summary_path)
-            rows.append(
-                {
-                    "run": run_idx,
-                    "log_dir": str(log_dir),
-                    **stats,
-                }
-            )
+            row = {
+                "run": run_idx,
+                "log_dir": str(log_dir),
+                **stats,
+            }
+            rows_by_run[run_idx] = row
+            save_run_cache(cache_path, rows_by_run)
+            rows.append(row)
 
             # Print summary after each run
             print(f"  → Run {run_idx} complete: "
