@@ -30,7 +30,6 @@ def classify_difficulty(problem):
     loops = 0
     ifs = 0
     nested_loops = False
-
     for node in ast.walk(tree):
         # Count Loops (For and While)
         if isinstance(node, (ast.For, ast.While)):
@@ -40,7 +39,6 @@ def classify_difficulty(problem):
                 for grandchild in ast.walk(child):
                     if isinstance(grandchild, (ast.For, ast.While)):
                         nested_loops = True
-
         # Count Conditionals
         if isinstance(node, ast.If):
             ifs += 1
@@ -54,7 +52,6 @@ def classify_difficulty(problem):
         return "Medium / Intermediate"
     else:
         return "Easy / Basic"
-
 
 def main():
     dataset_path = Path("llm30/pipeline/datasets/humaneval/problems_original.jsonl")
