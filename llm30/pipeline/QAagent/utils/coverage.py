@@ -105,6 +105,7 @@ import coverage
 from io import StringIO
 import runpy
 from llm30.pipeline.QAagent.tools.parse_coverage_html import extract_success_percentage
+from llm30.pipeline.QAagent.utils.extract_assert_block import extract_assert_blocks
 
 
 def _get_pipeline_logger():
@@ -123,66 +124,25 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
     os.makedirs(os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage'), exist_ok=True)
     os.makedirs(os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage'), exist_ok=True)
 
-    test_lines = test_string.split('\n')
-
-    # Filter test lines: keep assert statements and their continuation lines as blocks.
-    # This prevents truncating a multi-line assert when selecting the first five tests.
-    filtered_test_lines = []
-    test_blocks = []
-    current_block = []
-    in_continuation = False
-    for line in test_lines:
-        stripped = line.strip()
-        # Skip empty lines and comments.
-        if not stripped or stripped.startswith('#'):
-            in_continuation = False
-            if current_block:
-                test_blocks.append(current_block)
-                filtered_test_lines.extend(current_block)
-                current_block = []
-            continue
-        if stripped.startswith('assert'):
-            if current_block:
-                test_blocks.append(current_block)
-                filtered_test_lines.extend(current_block)
-            # Normalize to avoid "unexpected indent" when asserts are emitted with leading spaces.
-            normalized_line = stripped
-            current_block = [normalized_line]
-            in_continuation = stripped.rstrip().endswith('\\') or stripped.rstrip().endswith(',')
-        elif in_continuation:
-            current_block.append(stripped)
-            in_continuation = stripped.rstrip().endswith('\\') or stripped.rstrip().endswith(',')
-        else:
-            # Non-assert lines are ignored to match existing behavior.
-            in_continuation = False
-            if current_block:
-                test_blocks.append(current_block)
-                filtered_test_lines.extend(current_block)
-                current_block = []
-    if current_block:
-        test_blocks.append(current_block)
-        filtered_test_lines.extend(current_block)
+    raw_blocks = extract_assert_blocks(test_string)
 
     # Drop assert blocks that produce invalid syntax when combined with the solution code.
-    def _is_valid_block(block_lines):
-        test_code = "\n".join(block_lines)
+    def _is_valid_block(test_code):
         try:
             ast.parse(code_string + "\n" + test_code)
         except SyntaxError:
             return False
         return True
 
-    valid_blocks = [block for block in test_blocks if _is_valid_block(block)]
-    filtered_test_lines = [line for block in valid_blocks for line in block]
+    valid_blocks = [block for block in raw_blocks if _is_valid_block(block)]
 
     # Write the combined code and test string to separate files for full and first five tests
     with open(os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage', 'total_coverage.py'), 'w') as f2:
-        f2.write(code_string + "\n" + "\n".join(filtered_test_lines))
+        f2.write(code_string + "\n" + "\n".join(valid_blocks))
 
     # Select the first five assert blocks to avoid cutting a test mid-assert.
     if valid_blocks:
-        first_five_blocks = valid_blocks[:5]
-        first_five_tests = "\n".join("\n".join(block) for block in first_five_blocks)
+        first_five_tests = "\n".join(valid_blocks[:5])
     else:
         # Fallback to empty tests to avoid syntax errors.
         first_five_tests = ""

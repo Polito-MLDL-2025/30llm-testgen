@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 from datetime import datetime
 
 
@@ -13,6 +14,16 @@ def write_plan_and_tests_qa(log_folder, problem_id, pseudocode, tests):
 
     with open(os.path.join(result_folder, 'generated_tests.txt'), 'w') as f:
         f.write(tests)
+def write_timeout_tests_qa(log_folder, problem_id, timeout_tests,original_tests):
+    # Write results to files
+    result_folder = os.path.join(log_folder, f'problem_{problem_id}')
+    os.makedirs(result_folder, exist_ok=True)
+
+    with open(os.path.join(result_folder, 'timeout_tests.txt'), 'w') as f:
+        f.write(timeout_tests)
+
+    with open(os.path.join(result_folder, 'original_tests.txt'), 'w') as f:
+        f.write(original_tests)
 
 def sanitize_problem_id(problem_id):
     """
@@ -65,10 +76,11 @@ def create_log_folder(dataset=None, model=None,prefix='QAagent'):
     return log_folder
 
 
-def setup_logger(log_folder):
+def setup_logger(log_folder, debug_mode=False):
     """Sets up the logger to log into the timestamped folder."""
     logger = logging.getLogger('MultiAgentLogger')
-    logger.setLevel(logging.INFO)
+    logger_level = logging.DEBUG if debug_mode else logging.INFO
+    logger.setLevel(logger_level)
 
     if logger.handlers:
         for handler in list(logger.handlers):
@@ -76,7 +88,7 @@ def setup_logger(log_folder):
             handler.close()
 
     file_handler = logging.FileHandler(os.path.join(log_folder, 'pipeline.log'))
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logger_level)
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
@@ -119,3 +131,15 @@ def write_details(log_folder, result):
             f"First five coverage: {cur_first_five_coverage}\n"
             f"Coverage: {cur_total_coverage}\n"
             f"Input tokens: {cur_num_input_tokens}\nOutput tokens: {cur_num_output_tokens}\n")
+
+
+def ensure_stream_handler(logger):
+    if not any(
+            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+            for handler in logger.handlers
+    ):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)

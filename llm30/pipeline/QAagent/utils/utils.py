@@ -2,8 +2,10 @@ import json
 import argparse
 from typing import Dict, Iterable
 
+
 def read_problems(filename: str) -> list:
     return list(stream_jsonl(filename))
+
 
 def stream_jsonl(filename: str) -> Iterable[Dict]:
     # Parses each jsonl line from a .jsonl file and yields it as a dictionary.
@@ -19,10 +21,12 @@ def add_plan(problem_name, pseudocode):
 {pseudocode}
 """
 
+
 def add_canonical_solution(problem_name):
     return f"""{problem_name["prompt"]}
 {problem_name["canonical_solution"]}
 """
+
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Specify dataset and model.")
@@ -48,17 +52,18 @@ def parse_args(argv=None):
     parser.add_argument(
         "--max-workers",
         type=int,
-        default=2,
-        help="Number of worker threads to use (default: 2)."
+        default=4,
+        help="Number of worker threads to use (default: 4)."
     )
     parser.add_argument(
         "--merge-strategy",
-        choices=["concat", "concat-enhanced", "llm", "accuracy"],
+        choices=["concat", "concat-enhanced", "llm", "llm_multi_steps", "accuracy"],
         default="concat",
         help=(
             "Strategy to merge test sets: 'concat' (concatenate all, default), "
             "'concat-enhanced' (concat with syntax validation and deduplication), "
-            "'llm' (use LLM to merge intelligently), or "
+            "'llm' (use one LLM call to merge), "
+            "'llm_multi_steps' (two-step LLM filter + aggregate), or "
             "'accuracy' (filter to tests that pass the canonical solution)."
         )
     )
@@ -71,7 +76,24 @@ def parse_args(argv=None):
             "'original' uses the original humaneval prompt when available."
         )
     )
+    parser.add_argument(
+        "--dataset-path",
+        default=None,
+        help="Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset."
+    )
+    parser.add_argument(
+        "--debug-mode",
+        action="store_true",
+        help="Enable debug logging and write detailed merger outputs to log files."
+    )
+    parser.add_argument(
+        "--retry-sleep-seconds",
+        type=int,
+        default=60,
+        help="Seconds to sleep between retry attempts after a failed/timed-out run."
+    )
     return parser.parse_args(argv)
+
 
 def update_total_stats(result, total_stats):
     problem_id, cur_num_input_tokens, cur_num_output_tokens, cur_first_five_coverage, cur_total_coverage, cur_accuracy = result

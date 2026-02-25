@@ -8,11 +8,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     # Ensure local imports work when running via "python scripts/...".
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
+from scripts.utils.run_cache import build_cache_path, load_run_cache, save_run_cache
 
 def sanitize_name(value: str) -> str:
     return value.replace("/", "_").replace(":", "_").replace(" ", "_")
@@ -48,25 +51,6 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
     }
 
 
-def build_argv(
-        args: argparse.Namespace, generator_prompt: str, merge_strategy: str
-) -> list[str]:
-    return [
-        "--dataset",
-        args.dataset,
-        "--model",
-        args.model,
-        "--max-tasks",
-        str(args.max_tasks),
-        "--max-workers",
-        str(args.max_workers),
-        "--generator-prompt",
-        generator_prompt,
-        "--merge-strategy",
-        merge_strategy,
-    ]
-
-
 def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> None:
     import traceback
     from llm30.pipeline.QAagent import QAagent_merge
@@ -98,7 +82,7 @@ def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> Non
     raise SystemExit(exit_code)
 
 
-def run_agent_main(argv: list[str], timeout_seconds: int = 500) -> None:
+def run_agent_main(argv: list[str], timeout_seconds: int = 600) -> None:
     attempt = 0
     while True:
         attempt += 1
@@ -153,17 +137,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Run QAagent merge sequentially and aggregate summary stats into CSVs."
     )
-    parser.add_argument("--runs", type=int, default=10, help="Number of sequential runs.")
-    parser.add_argument("--dataset", default="humaneval", help="Dataset to use.")
-    parser.add_argument("--model", default="nvidia/nemotron-3-nano-30b-a3b", help="Model name.")
-    parser.add_argument("--max-tasks", type=int, default=20, help="Maximum tasks per run.")
-    parser.add_argument("--max-workers", type=int, default=5, help="Workers per run.")
-    parser.add_argument("--output-dir", default="logs", help="Directory for the CSV output.")
-    parser.add_argument(
-        "--predefine-name",
-        default=None,
-        help="Base name for output CSVs (suffixes _<prompt>_<strategy>.csv are added).",
-    )
+    parser = config_run_agent_parser(parser)
     args = parser.parse_args(argv)
 
     if args.runs <= 0:
@@ -182,19 +156,54 @@ def main(argv=None) -> int:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    args_signature = {
+        "dataset": args.dataset,
+        "model": args.model,
+        "runs": args.runs,
+        "max_tasks": args.max_tasks,
+        "max_workers": args.max_workers,
+        "dataset_path": args.dataset_path,
+        "predefine_name": args.predefine_name,
+    }
 
     generator_prompts = ("default", "original")
-    # generator_prompts = [ "original"]
-    merge_strategies = ("accuracy", "concat")
-    # merge_strategies = ("concat", "concat-enhanced", "llm", "accuracy")
+    # generator_prompts = [ "original","default"]
+    merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
+    # merge_strategies = ("accuracy",  "llm_multi_steps")
     # merge_strategies = ["llm"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:
-            argv = build_argv(args, generator_prompt, merge_strategy)
+            argv = build_argv_agent(args, generator_prompt)
+            argv += ["--merge-strategy", merge_strategy]
+            config_tag = f"{generator_prompt}_{merge_strategy}"
+            cache_path = build_cache_path(
+                output_dir=output_dir,
+                script_id="run_qaagent_merge_10x",
+                config_tag=config_tag,
+                args_signature=args_signature,
+            )
+            rows_by_run = {
+                run_idx: row
+                for run_idx, row in load_run_cache(cache_path).items()
+                if 1 <= run_idx <= args.runs
+            }
             rows: list[dict[str, str | int | float]] = []
 
             for run_idx in range(1, args.runs + 1):
+                cached_row = rows_by_run.get(run_idx)
+                if cached_row is not None:
+                    rows.append(cached_row)
+                    print(
+                        f"[{generator_prompt}/{merge_strategy}] Run {run_idx}/{args.runs}: using cached result",
+                        flush=True,
+                    )
+                    print(f"  → Run {run_idx} cached: "
+                          f"Accuracy={float(cached_row['accuracy']):.2f}%, "
+                          f"Coverage={float(cached_row['first_five_coverage']):.2f}%→{float(cached_row['coverage']):.2f}%, "
+                          f"Tokens={int(cached_row['input_tokens'])}+{int(cached_row['output_tokens'])}")
+                    continue
+
                 before_logs = list_log_dirs(logs_root)
                 print(
                     f"[{generator_prompt}/{merge_strategy}] Run {run_idx}/{args.runs}: "
@@ -218,13 +227,14 @@ def main(argv=None) -> int:
                     raise FileNotFoundError(f"Missing summary file: {summary_path}")
 
                 stats = parse_summary(summary_path)
-                rows.append(
-                    {
-                        "run": run_idx,
-                        "log_dir": str(log_dir),
-                        **stats,
-                    }
-                )
+                row = {
+                    "run": run_idx,
+                    "log_dir": str(log_dir),
+                    **stats,
+                }
+                rows_by_run[run_idx] = row
+                save_run_cache(cache_path, rows_by_run)
+                rows.append(row)
 
                 # Print summary after each run
                 print(f"  → Run {run_idx} complete: "
