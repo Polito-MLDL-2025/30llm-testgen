@@ -52,6 +52,49 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
     }
 
 
+def parse_difficulty_summary(difficulty_file: Path) -> dict[str, float | int]:
+    """Parse a single difficulty summary file."""
+    values: dict[str, str] = {}
+    with difficulty_file.open() as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            key, _, value = line.partition(":")
+            values[key.strip().lower()] = value.strip()
+    
+    return {
+        "tasks_evaluated": int(values["tasks evaluated"]),
+        "accuracy": float(values["accuracy"]),
+        "first_five_coverage": float(values["first five coverage"]),
+        "coverage": float(values["coverage"]),
+        "input_tokens": int(values["input tokens"]),
+        "output_tokens": int(values["output tokens"]),
+    }
+
+
+def aggregate_difficulty_stats(log_dir: Path) -> dict[str, dict[str, float | int]]:
+    """Extract per-difficulty statistics from a log directory."""
+    difficulty_folder = log_dir / "difficulty_summaries"
+    if not difficulty_folder.exists():
+        return {}
+    
+    difficulty_stats = {}
+    difficulty_files = [
+        ("easy_basic.txt", "Easy / Basic"),
+        ("medium_intermediate.txt", "Medium / Intermediate"),
+        ("medium-hard_complex.txt", "Medium-Hard / Complex"),
+        ("hard_advanced.txt", "Hard / Advanced"),
+    ]
+    
+    for filename, difficulty_name in difficulty_files:
+        file_path = difficulty_folder / filename
+        if file_path.exists():
+            difficulty_stats[difficulty_name] = parse_difficulty_summary(file_path)
+    
+    return difficulty_stats
+
+
 def _run_agent_main(argv: list[str], output_queue: multiprocessing.Queue) -> None:
     import traceback
     from llm30.pipeline.QAagent import QAagent
@@ -182,6 +225,14 @@ def main(argv=None) -> int:
             if 1 <= run_idx <= args.runs
         }
         rows: list[dict[str, str | int | float]] = []
+        
+        # Track difficulty stats across runs
+        difficulty_stats_by_run: dict[str, list[dict]] = {
+            "Easy / Basic": [],
+            "Medium / Intermediate": [],
+            "Medium-Hard / Complex": [],
+            "Hard / Advanced": [],
+        }
 
         for run_idx in range(1, args.runs + 1):
             cached_row = rows_by_run.get(run_idx)
@@ -227,6 +278,11 @@ def main(argv=None) -> int:
             rows_by_run[run_idx] = row
             save_run_cache(cache_path, rows_by_run)
             rows.append(row)
+            
+            # Collect difficulty stats for this run
+            run_difficulty_stats = aggregate_difficulty_stats(log_dir)
+            for difficulty, stats_dict in run_difficulty_stats.items():
+                difficulty_stats_by_run[difficulty].append(stats_dict)
 
             # Print summary after each run
             print(f"  → Run {run_idx} complete: "
@@ -267,6 +323,41 @@ def main(argv=None) -> int:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
+        
+        # Write per-difficulty CSV files
+        for difficulty, diff_rows in difficulty_stats_by_run.items():
+            if not diff_rows:  # Skip if no data for this difficulty
+                continue
+            
+            safe_diff_name = difficulty.replace(" / ", "_").replace(" ", "_").lower()
+            diff_output_path = output_dir / f"{base_name}_{generator_prompt}_{safe_diff_name}.csv"
+            
+            # Calculate aggregate stats for this difficulty
+            diff_avg_acc = sum(r["accuracy"] for r in diff_rows) / len(diff_rows)
+            diff_avg_first_five = sum(r["first_five_coverage"] for r in diff_rows) / len(diff_rows)
+            diff_avg_cov = sum(r["coverage"] for r in diff_rows) / len(diff_rows)
+            diff_sum_input = sum(r["input_tokens"] for r in diff_rows)
+            diff_sum_output = sum(r["output_tokens"] for r in diff_rows)
+            
+            diff_csv_rows = [
+                {"run": i + 1, **diff_rows[i]} for i in range(len(diff_rows))
+            ]
+            diff_csv_rows.append({
+                "run": "aggregate",
+                "tasks_evaluated": sum(r["tasks_evaluated"] for r in diff_rows) // len(diff_rows),
+                "accuracy": diff_avg_acc,
+                "first_five_coverage": diff_avg_first_five,
+                "coverage": diff_avg_cov,
+                "input_tokens": diff_sum_input,
+                "output_tokens": diff_sum_output,
+            })
+            
+            diff_fieldnames = ["run", "tasks_evaluated", "accuracy", "first_five_coverage", 
+                               "coverage", "input_tokens", "output_tokens"]
+            with diff_output_path.open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=diff_fieldnames)
+                writer.writeheader()
+                writer.writerows(diff_csv_rows)
 
         # Print summary for this configuration
         print(f"\n{'=' * 60}")
@@ -278,6 +369,9 @@ def main(argv=None) -> int:
         print(f"Total Input Tokens:        {sum_input_tokens:,}")
         print(f"Total Output Tokens:       {sum_output_tokens:,}")
         print(f"CSV saved to: {output_path}")
+        num_diff_csvs = sum(1 for d in difficulty_stats_by_run.values() if d)
+        if num_diff_csvs > 0:
+            print(f"Difficulty CSVs: {num_diff_csvs} files")
         print(f"{'=' * 60}\n")
     return 0
 
