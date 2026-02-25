@@ -3,6 +3,17 @@ import json
 import textwrap
 from pathlib import Path
 
+
+def difficulty_to_filename(difficulty: str) -> str:
+    mapping = {
+        "Easy / Basic": "easy_basic.jsonl",
+        "Medium / Intermediate": "medium_intermediate.jsonl",
+        "Medium-Hard / Complex": "medium_hard_complex.jsonl",
+        "Hard / Advanced": "hard_advanced.jsonl",
+        "Unknown": "unknown.jsonl",
+    }
+    return mapping.get(difficulty, "unknown.jsonl")
+
 def classify_difficulty(problem):
     """
     Classifies a HumanEval problem based on LOC, loops, and if-else conditions.
@@ -55,15 +66,18 @@ def classify_difficulty(problem):
 
 def main():
     dataset_path = Path("llm30/pipeline/datasets/humaneval/problems_original.jsonl")
+    output_dir = Path("llm30/pipeline/datasets/humaneval/by_difficulty")
     if not dataset_path.exists():
         print(f"Error: {dataset_path} not found.")
         return
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     results = {
         "Easy / Basic": [],
         "Medium / Intermediate": [],
         "Medium-Hard / Complex": [],
-        "Hard / Advanced": []
+        "Hard / Advanced": [],
+        "Unknown": [],
     }
     total = 0
     with open(dataset_path, 'r') as f:
@@ -72,9 +86,21 @@ def main():
                 continue
             problem = json.loads(line)
             difficulty = classify_difficulty(problem)
-            if difficulty in results:
-                results[difficulty].append(f"{problem['task_id']} ({problem['entry_point']})")
+            if difficulty not in results:
+                difficulty = "Unknown"
+            enriched_problem = dict(problem)
+            enriched_problem["difficulty"] = difficulty
+            results[difficulty].append(enriched_problem)
             total+=1
+
+    # Save one JSONL file per difficulty.
+    for level, tasks in results.items():
+        out_path = output_dir / difficulty_to_filename(level)
+        with open(out_path, "w") as out_f:
+            for task in tasks:
+                out_f.write(json.dumps(task, ensure_ascii=False) + "\n")
+        print(f"Written {len(tasks)} tasks -> {out_path}")
+
     # Print summary
     print("HumanEval Classification Summary:\n" + "="*30)
     for level, tasks in results.items():
