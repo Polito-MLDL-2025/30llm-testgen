@@ -3,29 +3,18 @@ import json
 import textwrap
 from pathlib import Path
 
-
-def difficulty_to_filename(difficulty: str) -> str:
-    mapping = {
-        "Easy / Basic": "easy_basic.jsonl",
-        "Medium / Intermediate": "medium_intermediate.jsonl",
-        "Medium-Hard / Complex": "medium_hard_complex.jsonl",
-        "Hard / Advanced": "hard_advanced.jsonl",
-    }
-    return mapping[difficulty]
-
-
 def classify_difficulty(problem):
     """
     Classifies a HumanEval problem based on LOC, loops, and if-else conditions.
     """
     code = problem.get('canonical_solution', '')
-
+    
     # Dedent to ensure valid parsing if there are leading spaces
     code = textwrap.dedent(code)
-
+    
     # Calculate LOC (ignoring empty lines and comments)
     loc = len([line for line in code.splitlines() if line.strip() and not line.strip().startswith('#')])
-
+    
     # Parse AST to count structures
     try:
         tree = ast.parse(code)
@@ -33,13 +22,13 @@ def classify_difficulty(problem):
         # Fallback for solutions that might have specific indentation needs
         try:
             tree = ast.parse(textwrap.indent(code, "    "))
-        except Exception:
-            return None
+        except:
+            return "Unknown"
 
     loops = 0
     ifs = 0
     nested_loops = False
-
+    
     for node in ast.walk(tree):
         # Count Loops (For and While)
         if isinstance(node, (ast.For, ast.While)):
@@ -49,7 +38,7 @@ def classify_difficulty(problem):
                 for grandchild in ast.walk(child):
                     if isinstance(grandchild, (ast.For, ast.While)):
                         nested_loops = True
-
+        
         # Count Conditionals
         if isinstance(node, ast.If):
             ifs += 1
@@ -64,10 +53,8 @@ def classify_difficulty(problem):
     else:
         return "Easy / Basic"
 
-
 def main():
     dataset_path = Path("llm30/pipeline/datasets/humaneval/problems_original.jsonl")
-    output_dir = Path("llm30/pipeline/datasets/humaneval")
     if not dataset_path.exists():
         print(f"Error: {dataset_path} not found.")
         return
@@ -86,19 +73,8 @@ def main():
             problem = json.loads(line)
             difficulty = classify_difficulty(problem)
             if difficulty in results:
-                enriched_problem = dict(problem)
-                enriched_problem["difficulty"] = difficulty
-                results[difficulty].append(enriched_problem)
-            total += 1
-
-    # Save one JSONL file per difficulty.
-    for level, tasks in results.items():
-        out_path = output_dir / difficulty_to_filename(level)
-        with open(out_path, "w") as out_f:
-            for task in tasks:
-                out_f.write(json.dumps(task, ensure_ascii=False) + "\n")
-        print(f"Written {len(tasks)} tasks -> {out_path}")
-
+                results[difficulty].append(f"{problem['task_id']} ({problem['entry_point']})")
+            total+=1
     # Print summary
     print("HumanEval Classification Summary:\n" + "="*30)
     for level, tasks in results.items():
@@ -108,7 +84,6 @@ def main():
         #     print(f"- {task}")
         # if len(tasks) > 10:
         #     print(f"... and {len(tasks) - 10} more.")
-
 
 if __name__ == "__main__":
     main()
