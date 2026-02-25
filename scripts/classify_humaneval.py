@@ -1,5 +1,6 @@
 import ast
 import json
+import os
 import textwrap
 from collections import defaultdict
 from pathlib import Path
@@ -53,6 +54,38 @@ def classify_difficulty(problem):
     else:
         return "Easy / Basic"
 
+
+def get_difficulty_mapping(dataset_path=None):
+    """
+    Returns a dictionary mapping task_id to difficulty level.
+    
+    Args:
+        dataset_path: Path to the HumanEval dataset. If None, uses default path
+                     relative to the script location.
+        
+    Returns:
+        dict: {task_id: difficulty_level}
+    """
+    if dataset_path is None:
+        script_dir = os.path.dirname(__file__)
+        project_root = os.path.abspath(os.path.join(script_dir, ".."))
+        dataset_path = os.path.join(project_root, "llm30", "pipeline", "datasets", "humaneval", "problems.jsonl")
+    
+    if not os.path.exists(dataset_path):
+        return {}
+    
+    difficulty_map = {}
+    with open(dataset_path, 'r') as f:
+        for line in f:
+            if not line.strip():
+                continue
+            problem = json.loads(line)
+            difficulty = classify_difficulty(problem)
+            difficulty_map[problem['task_id']] = difficulty
+    
+    return difficulty_map
+
+
 def main():
     dataset_path = Path("llm30/pipeline/datasets/humaneval/problems_original.jsonl")
     if not dataset_path.exists():
@@ -94,9 +127,9 @@ def main():
     for level, count in curated.items():
         print(f"{level}: {count}/{len(filter)} tasks - {count / len(filter):.2%} ")
     # Print summary
-    print("HumanEval Classification Summary:\n" + "=" * 30)
+    print("\nHumanEval Classification Summary:\n" + "=" * 30)
     for level, tasks in results.items():
-        print(f"\n### {level} :{len(tasks)}/{total} tasks - {len(tasks) / total:.2%} ")
+        print(f"\n{level}: {len(tasks)}/{total} tasks - {len(tasks) / total:.2%}")
         # Show first 5 examples for brevity if there are many
         # for task in tasks[:10]:
         #     print(f"- {task}")

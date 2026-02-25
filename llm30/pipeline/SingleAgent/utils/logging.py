@@ -99,6 +99,72 @@ def write_summary(log_folder, total_stats):
             f"Input tokens: {total_stats['input_tokens']}\nOutput tokens: {total_stats['output_tokens']}\n")
 
 
+def init_difficulty_stats():
+    """Initialize per-difficulty statistics dictionaries."""
+    difficulties = ["Easy / Basic", "Medium / Intermediate", "Medium-Hard / Complex", "Hard / Advanced"]
+    return {
+        difficulty: {
+            'evaluated': 0,
+            'accuracy': 0.0,
+            'first_five_coverage': 0.0,
+            'coverage': 0.0,
+            'input_tokens': 0,
+            'output_tokens': 0
+        }
+        for difficulty in difficulties
+    }
+
+
+def write_difficulty_summaries(log_folder, difficulty_stats, difficulty_mapping=None):
+    """Write per-difficulty summary statistics to files in a subfolder."""
+    difficulty_folder = os.path.join(log_folder, 'difficulty_summaries')
+    os.makedirs(difficulty_folder, exist_ok=True)
+    
+    # Write individual difficulty summaries
+    for difficulty, stats in difficulty_stats.items():
+        if stats['evaluated'] == 0:
+            continue
+        
+        safe_filename = difficulty.replace(' / ', '_').replace(' ', '_').lower() + '.txt'
+        with open(os.path.join(difficulty_folder, safe_filename), 'w') as f:
+            f.write(
+                f"Difficulty: {difficulty}\n"
+                f"Tasks evaluated: {stats['evaluated']}\n"
+                f"Accuracy: {stats['accuracy'] / stats['evaluated']}\n"
+                f"First five coverage: {stats['first_five_coverage'] / stats['evaluated']}\n"
+                f"Coverage: {stats['coverage'] / stats['evaluated']}\n"
+                f"Input tokens: {stats['input_tokens']}\n"
+                f"Output tokens: {stats['output_tokens']}\n"
+            )
+    
+    # Write aggregated summary
+    with open(os.path.join(difficulty_folder, 'all_difficulties.txt'), 'w') as f:
+        for difficulty, stats in difficulty_stats.items():
+            if stats['evaluated'] == 0:
+                continue
+            f.write(
+                f"\n{difficulty}:\n"
+                f"  Tasks evaluated: {stats['evaluated']}\n"
+                f"  Accuracy: {stats['accuracy'] / stats['evaluated']:.2f}\n"
+                f"  First five coverage: {stats['first_five_coverage'] / stats['evaluated']:.2f}\n"
+                f"  Coverage: {stats['coverage'] / stats['evaluated']:.2f}\n"
+                f"  Input tokens: {stats['input_tokens']}\n"
+                f"  Output tokens: {stats['output_tokens']}\n"
+            )
+    
+    # Write problem lists per difficulty
+    if difficulty_mapping:
+        with open(os.path.join(difficulty_folder, 'problem_lists.txt'), 'w') as f:
+            f.write("Problem Lists by Difficulty\n")
+            f.write("="*60 + "\n")
+            for difficulty in sorted(difficulty_stats.keys()):
+                problems = sorted([task_id for task_id, diff in difficulty_mapping.items() if diff == difficulty])
+                if problems:
+                    f.write(f"\n{difficulty} ({len(problems)} problems):\n")
+                    for problem in problems:
+                        f.write(f"  - {problem}\n")
+
+
 def write_details(log_folder, result):
     """Write detailed results for each problem to file."""
     problem_id, cur_num_input_tokens, cur_num_output_tokens, cur_first_five_coverage, cur_total_coverage, cur_accuracy = result

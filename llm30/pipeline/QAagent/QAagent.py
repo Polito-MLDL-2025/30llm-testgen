@@ -18,11 +18,13 @@ from llm30.pipeline.QAagent.utils.logging import (
     log_results,
     write_summary,
     write_details, ensure_stream_handler, write_timeout_tests_qa,
+    init_difficulty_stats, write_difficulty_summaries,
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
+from scripts.classify_humaneval import get_difficulty_mapping
 
 
 def generate_plan(problem_name, code_architect_prompt, model_name, logger):
@@ -205,6 +207,23 @@ def main(argv=None) -> int:
     problems = read_problems(dataset_path)
     print(f"Loaded {len(problems)} problems from: {dataset_path}")
 
+    # Load difficulty mapping
+    difficulty_mapping = {}
+    if args.dataset == "humaneval":
+        difficulty_mapping = get_difficulty_mapping(dataset_path)
+        if difficulty_mapping:
+            difficulty_counts = {}
+            difficulty_problems = {}
+            for task_id, diff in difficulty_mapping.items():
+                difficulty_counts[diff] = difficulty_counts.get(diff, 0) + 1
+                if diff not in difficulty_problems:
+                    difficulty_problems[diff] = []
+                difficulty_problems[diff].append(task_id)
+            print(f"Difficulty distribution:")
+            for diff, count in sorted(difficulty_counts.items()):
+                print(f"  {diff}: {count} tasks")
+                print(f"    Problems: {', '.join(sorted(difficulty_problems[diff]))}")
+
     # Initialize statistics
     total_stats = {
         'input_tokens': 0,
@@ -214,6 +233,7 @@ def main(argv=None) -> int:
         'accuracy': 0.0,
         'evaluated': 0
     }
+    difficulty_stats = init_difficulty_stats()
 
     # Run the QaAgent function on each problem
     start_index = 0
@@ -254,6 +274,18 @@ def main(argv=None) -> int:
                 if result:
                     task_id, input_tokens, output_tokens, first_five_cov, total_cov, accuracy = result
                     update_total_stats(result, total_stats)
+                    
+                    # Update per-difficulty stats
+                    if task_id in difficulty_mapping:
+                        difficulty = difficulty_mapping[task_id]
+                        if difficulty in difficulty_stats:
+                            difficulty_stats[difficulty]['evaluated'] += 1
+                            difficulty_stats[difficulty]['input_tokens'] += input_tokens
+                            difficulty_stats[difficulty]['output_tokens'] += output_tokens
+                            difficulty_stats[difficulty]['first_five_coverage'] += first_five_cov
+                            difficulty_stats[difficulty]['coverage'] += total_cov
+                            difficulty_stats[difficulty]['accuracy'] += accuracy
+                    
                     write_summary(log_folder, total_stats)
                     write_details(log_folder, result)
                     print(f"[{completed}/{total_problems}] {task_id:<20} | "
@@ -275,6 +307,12 @@ def main(argv=None) -> int:
         print(f"Average total coverage: {total_stats['coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Total input tokens: {total_stats['input_tokens']}")
         print(f"Total output tokens: {total_stats['output_tokens']}")
+    
+    # Write per-difficulty summaries
+    if difficulty_mapping:
+        write_difficulty_summaries(log_folder, difficulty_stats, difficulty_mapping)
+        print(f"\nPer-difficulty summaries written to: {os.path.join(log_folder, 'difficulty_summaries')}")
+    
     print(f"Results saved to: {log_folder}")
     print(f"{'=' * 60}\n")
     return 0
