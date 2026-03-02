@@ -21,12 +21,13 @@ Penalize suites containing suspicious or fragile tests, including:
 - likely-to-fail syntax/formatting patterns,
 - noisy or low-value tests that reduce confidence in reliable execution.
 
-Return ONLY valid JSON with this exact schema:
+Return ONLY valid JSON with this exact schema (for each candidate provided):
 {
   "selected_candidate": <integer>,
   "selection_reason": "<concise explanation for why this candidate is best>",
   "ranking": [
-    {"candidate": 1, "score": <0-100 number>, "reason": "<short reason>"},
-    {"candidate": 2, "score": <0-100 number>, "reason": "<short reason>"}
+    {"candidate": <integer>, "score": <0-100 number>, "reason": "<short reason>"},
+    {"candidate": <integer>, "score": <0-100 number>, "reason": "<short reason>"},
+    ...
   ]
 }

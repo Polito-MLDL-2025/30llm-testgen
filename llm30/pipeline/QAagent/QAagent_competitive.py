@@ -348,7 +348,7 @@ def main(argv=None) -> int:
             "code_architect": [
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_1.txt"),
                 os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_2.txt"),
-                # os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt"),
+                os.path.join(pipeline_dir, "prompts", "v1", "code_architect_humaneval_prompt_3.txt"),
                 ],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
             "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1",
