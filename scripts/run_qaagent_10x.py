@@ -237,7 +237,15 @@ def main(argv=None) -> int:
         for run_idx in range(1, args.runs + 1):
             cached_row = rows_by_run.get(run_idx)
             if cached_row is not None:
-                rows.append(cached_row)
+                # Load difficulty stats from cache if available
+                cached_difficulty_stats = cached_row.get("difficulty_stats", {})
+                for difficulty, stats_dict in cached_difficulty_stats.items():
+                    difficulty_stats_by_run[difficulty].append(stats_dict)
+                
+                # Add to CSV rows (exclude difficulty_stats field)
+                csv_row = {k: v for k, v in cached_row.items() if k != "difficulty_stats"}
+                rows.append(csv_row)
+                
                 print(
                     f"[{generator_prompt}] Run {run_idx}/{args.runs}: using cached result",
                     flush=True,
@@ -270,19 +278,29 @@ def main(argv=None) -> int:
                 raise FileNotFoundError(f"Missing summary file: {summary_path}")
 
             stats = parse_summary(summary_path)
-            row = {
-                "run": run_idx,
-                "log_dir": str(log_dir),
-                **stats,
-            }
-            rows_by_run[run_idx] = row
-            save_run_cache(cache_path, rows_by_run)
-            rows.append(row)
             
             # Collect difficulty stats for this run
             run_difficulty_stats = aggregate_difficulty_stats(log_dir)
             for difficulty, stats_dict in run_difficulty_stats.items():
                 difficulty_stats_by_run[difficulty].append(stats_dict)
+            
+            # Store in cache with difficulty stats
+            cache_row = {
+                "run": run_idx,
+                "log_dir": str(log_dir),
+                **stats,
+                "difficulty_stats": run_difficulty_stats,
+            }
+            rows_by_run[run_idx] = cache_row
+            save_run_cache(cache_path, rows_by_run)
+            
+            # Store in CSV rows without difficulty stats
+            csv_row = {
+                "run": run_idx,
+                "log_dir": str(log_dir),
+                **stats,
+            }
+            rows.append(csv_row)
 
             # Print summary after each run
             print(f"  → Run {run_idx} complete: "
