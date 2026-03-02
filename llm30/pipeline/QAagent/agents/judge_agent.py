@@ -21,17 +21,35 @@ def _extract_first_json_obj(text):
         return None
 
 
-def judge_single_test_suite(problem_name, candidate, prompt_path, model, logger, candidate_idx=None):
+def judge_test_suites(problem_name, candidates, prompt_path, model, logger):
     """
-    Score one candidate test suite in isolation (black-box).
+    Rank/select candidate test suites in a black-box setting.
+    All candidates are judged together and the best one is selected.
+
+    Args:
+        problem_name: Dict containing at least "prompt" and "task_id"
+        candidates: List[Dict], each item must contain "plan" and "tests"
+        prompt_path: Path to judge prompt template
+        model: Model name
+        logger: Logger
 
     Returns:
-        tuple: (score, reason, input_tokens, output_tokens, raw_parsed_json)
+        tuple: (selected_idx, selection_reason, ranking, input_tokens, output_tokens, raw_parsed_json)
     """
+    if not candidates:
+        return 0, "No candidates available.", [], 0, 0, {}
+    if len(candidates) == 1:
+        return 0, "Only one candidate available.", [], 0, 0, {}
+
     with open(prompt_path, "r") as f:
         judge_prompt_template = f.read()
 
-    candidate_label = f"Candidate {candidate_idx}" if candidate_idx is not None else "Candidate"
+    suites_text = []
+    for idx, candidate in enumerate(candidates, start=1):
+        suites_text.append(
+            f"## Candidate {idx}\n"
+            f"### Generated Tests\n```python\n{candidate['tests']}\n```\n"
+        )
 
     full_prompt = f"""{judge_prompt_template}
 
@@ -43,12 +61,9 @@ def judge_single_test_suite(problem_name, candidate, prompt_path, model, logger,
 ## Entry Point
 {problem_name.get("entry_point", "N/A")}
 
-## {candidate_label}
-### Generated Tests
-```python
-{candidate["tests"]}
-```
+{"".join(suites_text)}
 """
+
     messages = [
         {"role": "system", "content": "You are a rigorous software test reviewer."},
         {"role": "user", "content": full_prompt},
@@ -60,19 +75,19 @@ def judge_single_test_suite(problem_name, candidate, prompt_path, model, logger,
     if not isinstance(parsed, dict):
         raise ValueError("Judge output is not valid JSON object.")
 
-    score = parsed.get("score")
-    reason = parsed.get("reason")
+    selected_candidate = int(parsed.get("selected_candidate", 1))
+    selected_idx = selected_candidate - 1
+    if selected_idx < 0 or selected_idx >= len(candidates):
+        raise ValueError(f"Invalid selected_candidate value: {selected_candidate}")
 
-    # Compatibility fallback if the model emits ranking-like JSON.
-    if score is None and isinstance(parsed.get("ranking"), list) and parsed["ranking"]:
-        first = parsed["ranking"][0]
-        if isinstance(first, dict):
-            score = first.get("score")
-            reason = reason or first.get("reason")
+    selection_reason = str(parsed.get("selection_reason", "Selected by judge agent."))
+    ranking = parsed.get("ranking", [])
+    if not isinstance(ranking, list):
+        ranking = []
 
-    try:
-        score = float(score)
-    except Exception:
-        raise ValueError(f"Invalid score from judge: {score}")
-
-    return score, str(reason or "No reason provided."), input_tokens, output_tokens, parsed
+    logger.debug(
+        "Judge selected candidate %s for problem %s",
+        selected_candidate,
+        problem_name.get("task_id", "unknown"),
+    )
+    return selected_idx, selection_reason, ranking, input_tokens, output_tokens, parsed
