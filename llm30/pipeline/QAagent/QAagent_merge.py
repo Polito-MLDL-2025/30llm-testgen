@@ -92,8 +92,8 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         p, plan_input_tokens, plan_output_tokens = generate_plan(
             problem_name,
             code_architect_prompt[i],
-            model_name,
-            logger,
+            model_name="qwen/qwen2.5-coder-32b-instruct",
+            logger=logger,
             agent_index=i + 1,
         )
         plan.append(p)
@@ -112,7 +112,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
                 plan[i],
                 test_generator_prompt,
                 model_name,
-                logger,
+                logger=logger,
                 agent_index=i + 1,
             )
             generated_tests.append(original_tests)

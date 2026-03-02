@@ -209,11 +209,11 @@ def main(argv=None) -> int:
         "predefine_name": args.predefine_name,
     }
 
-    generator_prompts = ("default")
-    # generator_prompts = [ "original","default"]
+    # generator_prompts = ("default")
+    generator_prompts = ["default"]
     # merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
-    merge_strategies = ("accuracy")
-    # merge_strategies = ["llm"]
+    # merge_strategies = ("accuracy")
+    merge_strategies = ["accuracy"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:

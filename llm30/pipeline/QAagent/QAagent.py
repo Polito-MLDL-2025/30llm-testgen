@@ -91,13 +91,13 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     logger.info(f'Starting QA Agent pipeline for problem ID {problem_id}')
 
     # generate natural language pseudocode from problem["prompt"]
-    plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name, logger)
+    plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name="qwen/qwen2.5-coder-32b-instruct", logger=logger)
     num_input_tokens += plan_input_tokens
     num_output_tokens += plan_output_tokens
 
     try:
         generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan,
-                                                                                test_generator_prompt, model_name,
+                                                                                test_generator_prompt, model_name, logger=
                                                                                 logger)
         num_input_tokens += test_input_tokens
         num_output_tokens += test_output_tokens
