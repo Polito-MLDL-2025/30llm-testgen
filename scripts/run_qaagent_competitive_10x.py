@@ -208,7 +208,7 @@ def main(argv=None) -> int:
         "predefine_name": args.predefine_name,
     }
 
-    for generator_prompt in ("default", "original"):
+    for generator_prompt in ("default", ):
         argv = build_argv_agent(args, generator_prompt)
         cache_path = build_cache_path(
             output_dir=output_dir,
