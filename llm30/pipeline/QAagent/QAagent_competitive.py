@@ -407,8 +407,8 @@ def main(argv=None) -> int:
         "mbpp": {
             "code_architect": [os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_mbpp_prompt.txt"),
-            "judge_selector": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_selector_humaneval_prompt.txt"),
-            "judge_scorer": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_scorer_humaneval_prompt.txt"),
+            "judge_selector": None,  # Not available yet for MBPP
+            "judge_scorer": None,  # Not available yet for MBPP
         }
     }
     code_architect_prompts = prompt_paths[args.dataset]["code_architect"]
