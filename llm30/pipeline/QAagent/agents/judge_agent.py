@@ -21,6 +21,67 @@ def _extract_first_json_obj(text):
         return None
 
 
+def judge_single_test_suite(problem_name, candidate, prompt_path, model, logger, candidate_idx=1):
+    """
+    Judge a single candidate test suite independently.
+
+    Args:
+        problem_name: Dict containing at least "prompt" and "task_id"
+        candidate: Dict containing "plan" and "tests"
+        prompt_path: Path to judge prompt template
+        model: Model name
+        logger: Logger
+        candidate_idx: Index of the candidate (for logging)
+
+    Returns:
+        tuple: (score, reason, input_tokens, output_tokens, raw_parsed_json)
+    """
+    with open(prompt_path, "r") as f:
+        judge_prompt_template = f.read()
+
+    suite_text = (
+        f"## Candidate {candidate_idx}\n"
+        f"### Generated Plan\n```\n{candidate.get('plan', 'N/A')}\n```\n"
+        f"### Generated Tests\n```python\n{candidate['tests']}\n```\n"
+    )
+
+    full_prompt = f"""{judge_prompt_template}
+
+## Problem Prompt
+```python
+{problem_name["prompt"]}
+```
+
+## Entry Point
+{problem_name.get("entry_point", "N/A")}
+
+{suite_text}
+"""
+
+    messages = [
+        {"role": "system", "content": "You are a rigorous software test reviewer."},
+        {"role": "user", "content": full_prompt},
+    ]
+
+    completion, input_tokens, output_tokens = call_and_handle(messages, model, temperature=0)
+    raw_content = completion.choices[0].message.content or ""
+    parsed = _extract_first_json_obj(raw_content)
+    
+    if not isinstance(parsed, dict):
+        raise ValueError("Judge output is not valid JSON object.")
+
+    score = parsed.get("score")
+    reason = str(parsed.get("reason", "Judged by judge agent."))
+
+    logger.debug(
+        "Judge scored candidate %s (problem %s) with score %s",
+        candidate_idx,
+        problem_name.get("task_id", "unknown"),
+        score,
+    )
+    return score, reason, input_tokens, output_tokens, parsed
+
+
 def judge_test_suites(problem_name, candidates, prompt_path, model, logger):
     """
     Rank/select candidate test suites in a black-box setting.

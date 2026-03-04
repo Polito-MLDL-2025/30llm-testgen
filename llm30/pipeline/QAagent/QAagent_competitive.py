@@ -16,7 +16,7 @@ from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create
     init_difficulty_stats, write_difficulty_summaries
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
-from llm30.pipeline.QAagent.agents.judge_agent import judge_test_suites
+from llm30.pipeline.QAagent.agents.judge_agent import judge_test_suites, judge_single_test_suite
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 from scripts.classify_humaneval import get_difficulty_mapping
@@ -140,8 +140,12 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
     if not agent_results:
         return 0, 0, 0, total_input_tokens, total_output_tokens
 
-    # 2) Black-box selection via judge (one call with all candidates)
+    # 2) Black-box selection via judge
     judge_prompt_path = (metadata or {}).get("judge_prompt_path")
+    # judge_strategy modes:
+    # - single: each candidate is scored independently (score/reason per suite), then highest llm_score wins.
+    # - multi: one joint comparison across all candidates (selected_candidate + ranking).
+    judge_strategy = (metadata or {}).get("judge_strategy")
     judge_data = {}
     ranking = []
     judge_input_tokens = 0
@@ -149,21 +153,60 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
     if judge_prompt_path:
         try:
-            best_idx, selection_reason, ranking, judge_input_tokens, judge_output_tokens, judge_data = judge_test_suites(
-                problem_name=problem_name,
-                candidates=agent_results,
-                prompt_path=judge_prompt_path,
-                model="qwen/qwen2.5-coder-32b-instruct",
-                logger=logger,
-            )
+            if judge_strategy == "single":
+                # Single judge: judge each candidate independently
+                candidates_scores = []
+                for idx, agent in enumerate(agent_results):
+                    try:
+                        score, reason, in_toks, out_toks, raw = judge_single_test_suite(
+                            problem_name=problem_name,
+                            candidate=agent,
+                            prompt_path=judge_prompt_path,
+                            model=model_name,
+                            logger=logger,
+                            candidate_idx=idx + 1,
+                        )
+                        judge_input_tokens += in_toks
+                        judge_output_tokens += out_toks
+                        agent["llm_score"] = score
+                        candidates_scores.append({"candidate": idx + 1, "score": score, "reason": reason})
+                        judge_data[f"candidate_{idx + 1}"] = raw
+                    except Exception as e:
+                        logger.error(f"Judge agent failed for candidate {idx + 1}: {e}")
+                        agent["llm_score"] = None
+                        candidates_scores.append({"candidate": idx + 1, "score": None, "reason": f"judge_error: {e}"})
+                
+                ranking = candidates_scores
+                
+                # Select best candidate from single judge scores
+                valid_scores = [item for item in ranking if isinstance(item.get("score"), (int, float))]
+                if valid_scores:
+                    best_score = max(item["score"] for item in valid_scores)
+                    top_items = [item for item in valid_scores if item["score"] == best_score]
+                    best_item = top_items[0]  # Take first if tied
+                    best_idx = int(best_item["candidate"]) - 1
+                    selection_reason = str(best_item["reason"])
+                else:
+                    logger.warning("No valid judge scores available. Falling back to agent 1.")
+                    best_idx = 0
+                    selection_reason = "Fallback selection (agent 1): no valid judge score."
+            else:
+                # Multi judge: judge all candidates together (original behavior)
+                best_idx, selection_reason, ranking, judge_input_tokens, judge_output_tokens, judge_data = judge_test_suites(
+                    problem_name=problem_name,
+                    candidates=agent_results,
+                    prompt_path=judge_prompt_path,
+                    model=model_name,
+                    logger=logger,
+                )
 
-            # Store per-candidate llm score from ranking
-            for item in ranking:
-                if isinstance(item, dict):
-                    candidate_num = item.get("candidate")
-                    score = item.get("score")
-                    if isinstance(candidate_num, int) and 1 <= candidate_num <= len(agent_results):
-                        agent_results[candidate_num - 1]["llm_score"] = score
+                # Store per-candidate llm score from ranking
+                for item in ranking:
+                    if isinstance(item, dict):
+                        candidate_num = item.get("candidate")
+                        score = item.get("score")
+                        if isinstance(candidate_num, int) and 1 <= candidate_num <= len(agent_results):
+                            agent_results[candidate_num - 1]["llm_score"] = score
 
         except Exception as e:
             logger.error(f"Judge agent failed, fallback to agent 1: {e}")
@@ -292,7 +335,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt,
-                                logger, judge_prompt_path=None,
+                                logger, judge_prompt_path=None, judge_strategy="multi",
                                 timeout_seconds=300, max_attempts=3):
     try:
         result = competitive_qaAgent(
@@ -304,7 +347,8 @@ def process_problem_competitive(problem, model, dataset, log_folder, code_archit
             log_folder=log_folder,
             logger=logger,
             metadata={
-            "judge_prompt_path": judge_prompt_path
+            "judge_prompt_path": judge_prompt_path,
+            "judge_strategy": judge_strategy
             })
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
@@ -339,6 +383,8 @@ def main(argv=None) -> int:
     print(f"{'=' * 60}")
     print(f"Model: {model}")
     print(f"Dataset: {dataset}")
+    print(f"Judge Strategy: {args.judge_strategy}")
+    print(f"Generator Prompt: {args.generator_prompt}")
     print(f"Log folder: {log_folder}")
     print(f"Max workers: {args.max_workers}")
 
@@ -353,19 +399,25 @@ def main(argv=None) -> int:
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
             "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1",
                                                     "test_generator_humaneval_prompt_original.txt"),
-            "judge": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
+            # Multi prompt expects selected_candidate + ranking across all candidates.
+            "judge_multi": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
+            # Single prompt expects score + reason for one candidate at a time.
+            "judge_single": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_single_humaneval_prompt.txt"),
         },
         "mbpp": {
             "code_architect": [os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_mbpp_prompt.txt"),
-            "judge": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
+            #"judge_multi": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
+            #"judge_single": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_single_humaneval_prompt.txt"),
         }
     }
     code_architect_prompts = prompt_paths[args.dataset]["code_architect"]
     test_generator_prompt = prompt_paths[args.dataset]["test_generator"]
     if args.generator_prompt == "original":
         test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
-    judge_prompt_path = prompt_paths[args.dataset].get("judge")
+    # Route the judge prompt to the JSON schema expected by the selected strategy.
+    judge_prompt_key = "judge_single" if args.judge_strategy == "single" else "judge_multi"
+    judge_prompt_path = prompt_paths[args.dataset].get(judge_prompt_key)
     dataset_map = {
         "humaneval": os.path.join(pipeline_dir, "datasets", "humaneval", "problems.jsonl"),
         "mbpp": os.path.join(pipeline_dir, "datasets", "mbpp", "problems.jsonl")
@@ -432,6 +484,7 @@ def main(argv=None) -> int:
                 test_generator_prompt,
                 logger,
                 judge_prompt_path,
+                args.judge_strategy,
             ): i
             for i in range(start_index, end_index)
         }

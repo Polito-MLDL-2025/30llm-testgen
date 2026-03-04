@@ -77,6 +77,15 @@ def parse_args(argv=None):
         )
     )
     parser.add_argument(
+        "--judge-strategy",
+        choices=["single", "multi"],
+        default="multi",
+        help=(
+            "Judge strategy to use: 'single' judges each candidate individually, "
+            "'multi' (default) judges all candidates together in a single call."
+        )
+    )
+    parser.add_argument(
         "--dataset-path",
         default=None,
         help="Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset."
