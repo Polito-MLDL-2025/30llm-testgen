@@ -210,9 +210,9 @@ def main(argv=None) -> int:
 
     generator_prompts = ["default", "original"]
     # Benchmark both judge modes per prompt:
-    # - single: score each candidate independently, then pick max score
-    # - multi: one joint ranking call that directly selects best candidate
-    judge_strategies = ["single", "multi"]
+    # - scorer: score each candidate independently, then pick max score
+    # - selector: one joint ranking call that directly selects best candidate
+    judge_strategies = ["scorer", "selector"]
 
     for generator_prompt in generator_prompts:
         for judge_strategy in judge_strategies:

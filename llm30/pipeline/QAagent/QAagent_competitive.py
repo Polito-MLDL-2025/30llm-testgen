@@ -16,7 +16,7 @@ from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create
     init_difficulty_stats, write_difficulty_summaries
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
-from llm30.pipeline.QAagent.agents.judge_agent import judge_test_suites, judge_single_test_suite
+from llm30.pipeline.QAagent.agents.judge_agent import judge_selector_suites, judge_scorer_suite
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 from scripts.classify_humaneval import get_difficulty_mapping
@@ -143,8 +143,8 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
     # 2) Black-box selection via judge
     judge_prompt_path = (metadata or {}).get("judge_prompt_path")
     # judge_strategy modes:
-    # - single: each candidate is scored independently (score/reason per suite), then highest llm_score wins.
-    # - multi: one joint comparison across all candidates (selected_candidate + ranking).
+    # - scorer: each candidate is scored independently (score/reason per suite), then highest llm_score wins.
+    # - selector: one joint comparison across all candidates (selected_candidate + ranking).
     judge_strategy = (metadata or {}).get("judge_strategy")
     judge_data = {}
     ranking = []
@@ -153,12 +153,12 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
     if judge_prompt_path:
         try:
-            if judge_strategy == "single":
-                # Single judge: judge each candidate independently
+            if judge_strategy == "scorer":
+                # Scorer judge: score each candidate independently
                 candidates_scores = []
                 for idx, agent in enumerate(agent_results):
                     try:
-                        score, reason, in_toks, out_toks, raw = judge_single_test_suite(
+                        score, reason, in_toks, out_toks, raw = judge_scorer_suite(
                             problem_name=problem_name,
                             candidate=agent,
                             prompt_path=judge_prompt_path,
@@ -191,8 +191,8 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
                     best_idx = 0
                     selection_reason = "Fallback selection (agent 1): no valid judge score."
             else:
-                # Multi judge: judge all candidates together (original behavior)
-                best_idx, selection_reason, ranking, judge_input_tokens, judge_output_tokens, judge_data = judge_test_suites(
+                # Selector judge: judge all candidates together (original behavior)
+                best_idx, selection_reason, ranking, judge_input_tokens, judge_output_tokens, judge_data = judge_selector_suites(
                     problem_name=problem_name,
                     candidates=agent_results,
                     prompt_path=judge_prompt_path,
@@ -335,7 +335,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt,
-                                logger, judge_prompt_path=None, judge_strategy="multi",
+                                logger, judge_prompt_path=None, judge_strategy="selector",
                                 timeout_seconds=300, max_attempts=3):
     try:
         result = competitive_qaAgent(
@@ -399,16 +399,16 @@ def main(argv=None) -> int:
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_humaneval_prompt.txt"),
             "test_generator_original": os.path.join(pipeline_dir, "prompts", "v1",
                                                     "test_generator_humaneval_prompt_original.txt"),
-            # Multi prompt expects selected_candidate + ranking across all candidates.
-            "judge_multi": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
-            # Single prompt expects score + reason for one candidate at a time.
-            "judge_single": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_single_humaneval_prompt.txt"),
+            # Selector prompt expects selected_candidate + ranking across all candidates.
+            "judge_selector": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_selector_humaneval_prompt.txt"),
+            # Scorer prompt expects score + reason for one candidate at a time.
+            "judge_scorer": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_scorer_humaneval_prompt.txt"),
         },
         "mbpp": {
             "code_architect": [os.path.join(pipeline_dir, "prompts", "v1", "code_architect_mbpp_prompt.txt")],
             "test_generator": os.path.join(pipeline_dir, "prompts", "v1", "test_generator_mbpp_prompt.txt"),
-            #"judge_multi": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_humaneval_prompt.txt"),
-            #"judge_single": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_single_humaneval_prompt.txt"),
+            "judge_selector": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_selector_humaneval_prompt.txt"),
+            "judge_scorer": os.path.join(pipeline_dir, "prompts", "v1", "judge_competitive_scorer_humaneval_prompt.txt"),
         }
     }
     code_architect_prompts = prompt_paths[args.dataset]["code_architect"]
@@ -416,7 +416,7 @@ def main(argv=None) -> int:
     if args.generator_prompt == "original":
         test_generator_prompt = prompt_paths[args.dataset].get("test_generator_original", test_generator_prompt)
     # Route the judge prompt to the JSON schema expected by the selected strategy.
-    judge_prompt_key = "judge_single" if args.judge_strategy == "single" else "judge_multi"
+    judge_prompt_key = "judge_scorer" if args.judge_strategy == "scorer" else "judge_selector"
     judge_prompt_path = prompt_paths[args.dataset].get(judge_prompt_key)
     dataset_map = {
         "humaneval": os.path.join(pipeline_dir, "datasets", "humaneval", "problems.jsonl"),

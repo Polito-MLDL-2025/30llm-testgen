@@ -78,11 +78,11 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--judge-strategy",
-        choices=["single", "multi"],
-        default="multi",
+        choices=["scorer", "selector"],
+        default="selector",
         help=(
-            "Judge strategy to use: 'single' judges each candidate individually, "
-            "'multi' (default) judges all candidates together in a single call."
+            "Judge strategy to use: 'scorer' judges each candidate independently, "
+            "'selector' (default) judges all candidates together in a single call."
         )
     )
     parser.add_argument(

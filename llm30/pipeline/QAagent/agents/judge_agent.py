@@ -21,7 +21,7 @@ def _extract_first_json_obj(text):
         return None
 
 
-def judge_single_test_suite(problem_name, candidate, prompt_path, model, logger, candidate_idx=1):
+def judge_scorer_suite(problem_name, candidate, prompt_path, model, logger, candidate_idx=1):
     """
     Judge a single candidate test suite independently.
 
@@ -82,7 +82,7 @@ def judge_single_test_suite(problem_name, candidate, prompt_path, model, logger,
     return score, reason, input_tokens, output_tokens, parsed
 
 
-def judge_test_suites(problem_name, candidates, prompt_path, model, logger):
+def judge_selector_suites(problem_name, candidates, prompt_path, model, logger):
     """
     Rank/select candidate test suites in a black-box setting.
     All candidates are judged together and the best one is selected.
