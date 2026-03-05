@@ -11,6 +11,7 @@ This script orchestrates running all the 10x experiment scripts in sequence:
 Each script runs multiple configurations with multiple runs per configuration.
 """
 import argparse
+import csv
 import importlib.util
 import sys
 from datetime import datetime
@@ -29,6 +30,55 @@ def print_banner(title: str, char: str = "=") -> None:
     print(f"\n{char * 80}")
     print(f"{title:^80}")
     print(f"{char * 80}\n")
+
+
+def list_csv_files(output_dir: Path) -> set[Path]:
+    if not output_dir.exists():
+        return set()
+    return {path.resolve() for path in output_dir.glob("*.csv") if path.is_file()}
+
+
+def safe_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def print_token_avg_per_result(csv_path: Path) -> None:
+    with csv_path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+
+    if not rows:
+        return
+
+    printed_any = False
+    for row in rows:
+        input_tokens = safe_float(row.get("input_tokens"))
+        output_tokens = safe_float(row.get("output_tokens"))
+        tasks_evaluated = safe_float(row.get("tasks_evaluated"))
+        avg_tokens_per_task = safe_float(row.get("avg_tokens_per_task"))
+        run_label = row.get("run", "?")
+
+        if input_tokens is None or output_tokens is None:
+            continue
+
+        if avg_tokens_per_task is None:
+            if tasks_evaluated is None or tasks_evaluated <= 0:
+                continue
+            avg_tokens_per_task = (input_tokens + output_tokens) / tasks_evaluated
+
+        print(f"    {csv_path.name} | run={run_label}: AvgTok/Task={avg_tokens_per_task:.2f}")
+        printed_any = True
+
+    if printed_any:
+        print()
 
 
 def run_script(
@@ -72,6 +122,8 @@ def run_script(
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     start_time = datetime.now()
+    output_dir = Path(args.output_dir)
+    csv_before = list_csv_files(output_dir)
 
     try:
         module_name = f"_run_{script_path.stem}"
@@ -88,6 +140,15 @@ def run_script(
         print_banner(f"✅ {script_name} completed successfully!", "-")
         print(f"Duration: {duration}")
         print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        csv_after = list_csv_files(output_dir)
+        new_csv_files = sorted(csv_after - csv_before)
+        if new_csv_files:
+            print("  AvgTok/Task per result:")
+            for csv_file in new_csv_files:
+                try:
+                    print_token_avg_per_result(csv_file)
+                except Exception as e:
+                    print(f"    Failed to parse {csv_file.name}: {e}")
         return True
 
     except Exception as e:

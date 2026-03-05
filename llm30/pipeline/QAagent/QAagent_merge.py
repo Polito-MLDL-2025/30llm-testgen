@@ -25,6 +25,7 @@ from llm30.pipeline.QAagent.utils.logging import (
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
+from llm30.pipeline.QAagent.utils.model_selection import DEFAULT_PLAN_MODEL, resolve_merge_models
 from llm30.pipeline.QAagent.agents.merge_strategies.merger_agent import (
     merge_tests_concat,
     merge_tests_llm
@@ -78,11 +79,21 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
     merge_strategy = metadata.get("merge_strategy") if metadata else "concat"
+    plan_model_name = metadata.get("plan_model_name") if metadata else None
+    test_model_name = metadata.get("test_model_name") if metadata else None
+    merge_model_name = metadata.get("merge_model_name") if metadata else None
+    if not plan_model_name:
+        plan_model_name = DEFAULT_PLAN_MODEL
+    if not test_model_name:
+        test_model_name = model_name
+    if not merge_model_name:
+        merge_model_name = test_model_name
     debug_mode = bool(metadata.get("debug_mode")) if metadata else False
     debug_dir = os.path.join(log_folder, f"problem_{problem_id}", "merger_debug")
     logger.info(
         f'Starting QA Agent merge pipeline for problem ID {problem_id} '
-        f'using strategy {merge_strategy} (debug_mode={debug_mode})'
+        f'using strategy {merge_strategy} (debug_mode={debug_mode}) | '
+        f'models(plan={plan_model_name}, test={test_model_name}, merge={merge_model_name})'
     )
 
     # generate natural language pseudocode from problem["prompt"]
@@ -92,7 +103,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         p, plan_input_tokens, plan_output_tokens = generate_plan(
             problem_name,
             code_architect_prompt[i],
-            model_name="qwen/qwen2.5-coder-32b-instruct",
+            model_name=plan_model_name,
             logger=logger,
             agent_index=i + 1,
         )
@@ -111,7 +122,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
                 problem_name,
                 plan[i],
                 test_generator_prompt,
-                model_name,
+                test_model_name,
                 logger=logger,
                 agent_index=i + 1,
             )
@@ -155,7 +166,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         else:
             # Pass the merged plan (all plans concatenated) to provide full context
             merged_tests, merge_input_tokens, merge_output_tokens = merge_tests_llm(
-                generated_tests, problem_name, merged_plan, merger_prompt_path, model_name, logger
+                generated_tests, problem_name, merged_plan, merger_prompt_path, merge_model_name, logger
             )
             num_input_tokens += merge_input_tokens
             num_output_tokens += merge_output_tokens 
@@ -174,7 +185,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
                 problem_name,
                 merged_plan,
                 merger_prompt_path,
-                model_name,
+                merge_model_name,
                 logger,
                 debug_mode=debug_mode,
                 debug_dir=debug_dir,
@@ -265,6 +276,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
 
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
                     merge_strategy="concat", merger_prompt_path=None, debug_mode=False,
+                    plan_model_name=None, merge_model_name=None,
                     timeout_seconds=200, max_attempts=3, retry_sleep_seconds=60):
     try:
         result = qaAgent(
@@ -279,6 +291,9 @@ def process_problem(problem, model, dataset, log_folder, code_architect_prompt, 
                 "merge_strategy": merge_strategy,
                 "merger_prompt_path": merger_prompt_path,
                 "debug_mode": debug_mode,
+                "plan_model_name": plan_model_name,
+                "test_model_name": model,
+                "merge_model_name": merge_model_name,
             })
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
@@ -302,7 +317,10 @@ def main(argv=None) -> int:
     args = parse_args(argv)
 
     # Setup
-    model = args.model
+    stage_models = resolve_merge_models(args.model)
+    model = stage_models["test_model"]
+    plan_model = stage_models["plan_model"]
+    merge_model = stage_models["merge_model"]
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model, prefix='QAagent_merge')
     logger = setup_logger(log_folder, debug_mode=args.debug_mode)
@@ -311,7 +329,10 @@ def main(argv=None) -> int:
     print(f"\n{'=' * 60}")
     print("QA Agent Test Case Generation Pipeline")
     print(f"{'=' * 60}")
-    print(f"Model: {model}")
+    print(f"Model (CLI --model): {args.model}")
+    print(f"Plan model: {plan_model}")
+    print(f"Test model: {model}")
+    print(f"LLM merge model: {merge_model}")
     print(f"Dataset: {dataset}")
     print(f"Log folder: {log_folder}")
     print(f"Max workers: {args.max_workers}")
@@ -416,9 +437,11 @@ def main(argv=None) -> int:
                 code_architect_prompt,
                 test_generator_prompt,
                 logger,
-                args.merge_strategy,
-                merger_prompt_path,
-                args.debug_mode,
+                merge_strategy=args.merge_strategy,
+                merger_prompt_path=merger_prompt_path,
+                debug_mode=args.debug_mode,
+                plan_model_name=plan_model,
+                merge_model_name=merge_model,
                 retry_sleep_seconds=args.retry_sleep_seconds,
             ): i
             for i in range(start_index, end_index)

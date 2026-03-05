@@ -40,7 +40,7 @@ def parse_args(argv=None):
 
     parser.add_argument(
         "--model",
-        default="gpt-4o",
+        default="meta/llama3-8b-instruct",
         help="Specify the model to use."
     )
     parser.add_argument(

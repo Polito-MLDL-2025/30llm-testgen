@@ -8,7 +8,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     # Ensure local imports work when running via "python scripts/...".
@@ -16,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
 from scripts.utils.run_cache import build_cache_path, load_run_cache, save_run_cache
+from scripts.utils.summary_parser import infer_tasks_evaluated, compute_avg_tokens_per_task
 
 def sanitize_name(value: str) -> str:
     return value.replace("/", "_").replace(":", "_").replace(" ", "_")
@@ -43,6 +43,7 @@ def parse_summary(summary_path: Path) -> dict[str, float | int]:
             values[key.strip().lower()] = value.strip()
 
     return {
+        "tasks_evaluated": infer_tasks_evaluated(summary_path, values),
         "accuracy": float(values["accuracy"]),
         "first_five_coverage": float(values["first five coverage"]),
         "coverage": float(values["coverage"]),
@@ -61,7 +62,7 @@ def parse_difficulty_summary(difficulty_file: Path) -> dict[str, float | int]:
                 continue
             key, _, value = line.partition(":")
             values[key.strip().lower()] = value.strip()
-    
+
     return {
         "tasks_evaluated": int(values["tasks evaluated"]),
         "accuracy": float(values["accuracy"]),
@@ -77,7 +78,7 @@ def aggregate_difficulty_stats(log_dir: Path) -> dict[str, dict[str, float | int
     difficulty_folder = log_dir / "difficulty_summaries"
     if not difficulty_folder.exists():
         return {}
-    
+
     difficulty_stats = {}
     difficulty_files = [
         ("easy_basic.txt", "Easy / Basic"),
@@ -85,12 +86,12 @@ def aggregate_difficulty_stats(log_dir: Path) -> dict[str, dict[str, float | int
         ("medium-hard_complex.txt", "Medium-Hard / Complex"),
         ("hard_advanced.txt", "Hard / Advanced"),
     ]
-    
+
     for filename, difficulty_name in difficulty_files:
         file_path = difficulty_folder / filename
         if file_path.exists():
             difficulty_stats[difficulty_name] = parse_difficulty_summary(file_path)
-    
+
     return difficulty_stats
 
 
@@ -244,15 +245,36 @@ def main(argv=None) -> int:
             for run_idx in range(1, args.runs + 1):
                 cached_row = rows_by_run.get(run_idx)
                 if cached_row is not None:
+                    tasks_evaluated = int(cached_row.get("tasks_evaluated", 0) or 0)
+                    if tasks_evaluated <= 0:
+                        cached_log_dir = cached_row.get("log_dir")
+                        if cached_log_dir:
+                            cached_summary = Path(cached_log_dir) / "summary.txt"
+                            if cached_summary.exists():
+                                tasks_evaluated = int(parse_summary(cached_summary)["tasks_evaluated"])
+                    if tasks_evaluated <= 0:
+                        tasks_evaluated = int(args.max_tasks or 0)
+                    avg_tokens_per_task = float(
+                        cached_row.get(
+                            "avg_tokens_per_task",
+                            compute_avg_tokens_per_task(
+                                int(cached_row["input_tokens"]),
+                                int(cached_row["output_tokens"]),
+                                tasks_evaluated,
+                            ),
+                        )
+                    )
+                    cached_row["tasks_evaluated"] = tasks_evaluated
+                    cached_row["avg_tokens_per_task"] = avg_tokens_per_task
                     # Load difficulty stats from cache if available
                     cached_difficulty_stats = cached_row.get("difficulty_stats", {})
                     for difficulty, stats_dict in cached_difficulty_stats.items():
                         difficulty_stats_by_run[difficulty].append(stats_dict)
-                    
+
                     # Add to CSV rows (exclude difficulty_stats field)
                     csv_row = {k: v for k, v in cached_row.items() if k != "difficulty_stats"}
                     rows.append(csv_row)
-                    
+
                     print(
                         f"[{generator_prompt}/{merge_strategy}] Run {run_idx}/{args.runs}: using cached result",
                         flush=True,
@@ -260,7 +282,8 @@ def main(argv=None) -> int:
                     print(f"  → Run {run_idx} cached: "
                           f"Accuracy={float(cached_row['accuracy']):.2f}%, "
                           f"Coverage={float(cached_row['first_five_coverage']):.2f}%→{float(cached_row['coverage']):.2f}%, "
-                          f"Tokens={int(cached_row['input_tokens'])}+{int(cached_row['output_tokens'])}")
+                          f"Tokens={int(cached_row['input_tokens'])}+{int(cached_row['output_tokens'])}, "
+                          f"AvgTok/Task={avg_tokens_per_task:.2f}")
                     continue
 
                 before_logs = list_log_dirs(logs_root)
@@ -286,12 +309,17 @@ def main(argv=None) -> int:
                     raise FileNotFoundError(f"Missing summary file: {summary_path}")
 
                 stats = parse_summary(summary_path)
-                
+                stats["avg_tokens_per_task"] = compute_avg_tokens_per_task(
+                    int(stats["input_tokens"]),
+                    int(stats["output_tokens"]),
+                    int(stats["tasks_evaluated"]),
+                )
+
                 # Collect difficulty stats for this run
                 run_difficulty_stats = aggregate_difficulty_stats(log_dir)
                 for difficulty, stats_dict in run_difficulty_stats.items():
                     difficulty_stats_by_run[difficulty].append(stats_dict)
-                
+
                 # Store in cache with difficulty stats
                 cache_row = {
                     "run": run_idx,
@@ -301,7 +329,7 @@ def main(argv=None) -> int:
                 }
                 rows_by_run[run_idx] = cache_row
                 save_run_cache(cache_path, rows_by_run)
-                
+
                 # Store in CSV rows without difficulty stats
                 csv_row = {
                     "run": run_idx,
@@ -314,23 +342,30 @@ def main(argv=None) -> int:
                 print(f"  → Run {run_idx} complete: "
                       f"Accuracy={stats['accuracy']:.2f}%, "
                       f"Coverage={stats['first_five_coverage']:.2f}%→{stats['coverage']:.2f}%, "
-                      f"Tokens={stats['input_tokens']}+{stats['output_tokens']}")
+                      f"Tokens={stats['input_tokens']}+{stats['output_tokens']}, "
+                      f"AvgTok/Task={stats['avg_tokens_per_task']:.2f}")
 
             avg_accuracy = sum(row["accuracy"] for row in rows) / len(rows)
             avg_first_five = sum(row["first_five_coverage"] for row in rows) / len(rows)
             avg_coverage = sum(row["coverage"] for row in rows) / len(rows)
             sum_input_tokens = sum(row["input_tokens"] for row in rows)
             sum_output_tokens = sum(row["output_tokens"] for row in rows)
+            sum_tasks_evaluated = sum(int(row["tasks_evaluated"]) for row in rows)
+            avg_tokens_per_task = compute_avg_tokens_per_task(
+                int(sum_input_tokens), int(sum_output_tokens), int(sum_tasks_evaluated)
+            )
 
             rows.append(
                 {
                     "run": "aggregate",
                     "log_dir": "",
+                    "tasks_evaluated": sum_tasks_evaluated,
                     "accuracy": avg_accuracy,
                     "first_five_coverage": avg_first_five,
                     "coverage": avg_coverage,
                     "input_tokens": sum_input_tokens,
                     "output_tokens": sum_output_tokens,
+                    "avg_tokens_per_task": avg_tokens_per_task,
                 }
             )
 
@@ -339,11 +374,13 @@ def main(argv=None) -> int:
             fieldnames = [
                 "run",
                 "log_dir",
+                "tasks_evaluated",
                 "accuracy",
                 "first_five_coverage",
                 "coverage",
                 "input_tokens",
                 "output_tokens",
+                "avg_tokens_per_task",
             ]
             with output_path.open("w", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -354,32 +391,46 @@ def main(argv=None) -> int:
             for difficulty, diff_rows in difficulty_stats_by_run.items():
                 if not diff_rows:  # Skip if no data for this difficulty
                     continue
-                
+
                 safe_diff_name = difficulty.replace(" / ", "_").replace(" ", "_").lower()
                 diff_output_path = output_dir / f"{base_name}_{generator_prompt}_{merge_strategy}_{safe_diff_name}.csv"
-                
+
                 # Calculate aggregate stats for this difficulty
                 diff_avg_acc = sum(r["accuracy"] for r in diff_rows) / len(diff_rows)
                 diff_avg_first_five = sum(r["first_five_coverage"] for r in diff_rows) / len(diff_rows)
                 diff_avg_cov = sum(r["coverage"] for r in diff_rows) / len(diff_rows)
                 diff_sum_input = sum(r["input_tokens"] for r in diff_rows)
                 diff_sum_output = sum(r["output_tokens"] for r in diff_rows)
-                
+                diff_sum_tasks = sum(r["tasks_evaluated"] for r in diff_rows)
+                diff_avg_tokens_per_task = compute_avg_tokens_per_task(
+                    int(diff_sum_input), int(diff_sum_output), int(diff_sum_tasks)
+                )
+
                 diff_csv_rows = [
-                    {"run": i + 1, **diff_rows[i]} for i in range(len(diff_rows))
+                    {
+                        "run": i + 1,
+                        **diff_rows[i],
+                        "avg_tokens_per_task": compute_avg_tokens_per_task(
+                            int(diff_rows[i]["input_tokens"]),
+                            int(diff_rows[i]["output_tokens"]),
+                            int(diff_rows[i]["tasks_evaluated"]),
+                        ),
+                    }
+                    for i in range(len(diff_rows))
                 ]
                 diff_csv_rows.append({
                     "run": "aggregate",
-                    "tasks_evaluated": sum(r["tasks_evaluated"] for r in diff_rows) // len(diff_rows),
+                    "tasks_evaluated": diff_sum_tasks,
                     "accuracy": diff_avg_acc,
                     "first_five_coverage": diff_avg_first_five,
                     "coverage": diff_avg_cov,
                     "input_tokens": diff_sum_input,
                     "output_tokens": diff_sum_output,
+                    "avg_tokens_per_task": diff_avg_tokens_per_task,
                 })
-                
-                diff_fieldnames = ["run", "tasks_evaluated", "accuracy", "first_five_coverage", 
-                                   "coverage", "input_tokens", "output_tokens"]
+
+                diff_fieldnames = ["run", "tasks_evaluated", "accuracy", "first_five_coverage",
+                                   "coverage", "input_tokens", "output_tokens", "avg_tokens_per_task"]
                 with diff_output_path.open("w", newline="") as handle:
                     writer = csv.DictWriter(handle, fieldnames=diff_fieldnames)
                     writer.writeheader()
@@ -394,6 +445,7 @@ def main(argv=None) -> int:
             print(f"Average Total Coverage:    {avg_coverage:.2f}%")
             print(f"Total Input Tokens:        {sum_input_tokens:,}")
             print(f"Total Output Tokens:       {sum_output_tokens:,}")
+            print(f"Average Tokens / Task:     {avg_tokens_per_task:.2f}")
             print(f"CSV saved to: {output_path}")
             num_diff_csvs = sum(1 for d in difficulty_stats_by_run.values() if d)
             if num_diff_csvs > 0:

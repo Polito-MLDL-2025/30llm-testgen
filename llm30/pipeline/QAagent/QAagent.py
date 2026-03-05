@@ -22,6 +22,7 @@ from llm30.pipeline.QAagent.utils.logging import (
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
+from llm30.pipeline.QAagent.utils.model_selection import DEFAULT_PLAN_MODEL, resolve_qaagent_models
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 from scripts.classify_humaneval import get_difficulty_mapping
@@ -54,7 +55,7 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
 
 
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
-                    timeout_seconds=700, max_attempts=3):
+                    plan_model_name=None, timeout_seconds=700, max_attempts=3):
     try:
         result = qaAgent(
             problem_name=problem,
@@ -64,6 +65,10 @@ def process_problem(problem, model, dataset, log_folder, code_architect_prompt, 
             test_generator_prompt=test_generator_prompt,
             log_folder=log_folder,
             logger=logger,
+            metadata={
+                "plan_model_name": plan_model_name,
+                "test_model_name": model,
+            },
         )
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
@@ -88,17 +93,31 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     num_input_tokens = 0
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
-    logger.info(f'Starting QA Agent pipeline for problem ID {problem_id}')
+    plan_model_name = (metadata or {}).get("plan_model_name") or DEFAULT_PLAN_MODEL
+    test_model_name = (metadata or {}).get("test_model_name") or model_name
+    logger.info(
+        f"Starting QA Agent pipeline for problem ID {problem_id} "
+        f"(plan_model={plan_model_name}, test_model={test_model_name})"
+    )
 
     # generate natural language pseudocode from problem["prompt"]
-    plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name="qwen/qwen2.5-coder-32b-instruct", logger=logger)
+    plan, plan_input_tokens, plan_output_tokens = generate_plan(
+        problem_name,
+        code_architect_prompt,
+        model_name=plan_model_name,
+        logger=logger,
+    )
     num_input_tokens += plan_input_tokens
     num_output_tokens += plan_output_tokens
 
     try:
-        generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan,
-                                                                                test_generator_prompt, model_name, logger=
-                                                                                logger)
+        generated_tests, test_input_tokens, test_output_tokens = generate_tests(
+            problem_name,
+            plan,
+            test_generator_prompt,
+            test_model_name,
+            logger=logger,
+        )
         num_input_tokens += test_input_tokens
         num_output_tokens += test_output_tokens
     except Exception:
@@ -162,7 +181,9 @@ def main(argv=None) -> int:
     args = parse_args(argv)
 
     # Setup
-    model = args.model
+    stage_models = resolve_qaagent_models(args.model)
+    model = stage_models["test_model"]
+    plan_model = stage_models["plan_model"]
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model)
     logger = setup_logger(log_folder)
@@ -171,7 +192,9 @@ def main(argv=None) -> int:
     print(f"\n{'=' * 60}")
     print("QA Agent Test Case Generation Pipeline")
     print(f"{'=' * 60}")
-    print(f"Model: {model}")
+    print(f"Model (CLI --model): {args.model}")
+    print(f"Plan model: {plan_model}")
+    print(f"Test model: {model}")
     print(f"Dataset: {dataset}")
     print(f"Log folder: {log_folder}")
     print(f"Max workers: {args.max_workers}")
@@ -262,6 +285,7 @@ def main(argv=None) -> int:
                 code_architect_prompt,
                 test_generator_prompt,
                 logger,
+                plan_model_name=plan_model,
             ): i
             for i in range(start_index, end_index)
         }

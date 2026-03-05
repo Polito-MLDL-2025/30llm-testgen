@@ -106,7 +106,9 @@ from io import StringIO
 import runpy
 from llm30.pipeline.QAagent.tools.parse_coverage_html import extract_success_percentage
 from llm30.pipeline.QAagent.utils.extract_assert_block import extract_assert_blocks
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def _get_pipeline_logger():
     for name in ("SingleAgentLogger", "MultiAgentLogger"):
@@ -157,7 +159,8 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         import sys
         from io import StringIO as StdoutCapture
 
-        cov_total = coverage.Coverage(concurrency='thread', data_suffix=True)
+        branch = os.environ.get("COVERAGE_BRANCH", "true").lower() == "false"
+        cov_total = coverage.Coverage(concurrency='thread', data_suffix=True, branch=branch)
         try:
             cov_total.start()
             # Suppress stdout during test execution
@@ -187,7 +190,7 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
             cov_total.erase()
 
         # Set up coverages for first five tests
-        cov_five = coverage.Coverage(concurrency='thread', data_suffix=True)
+        cov_five = coverage.Coverage(concurrency='thread', data_suffix=True, branch=branch)
         cov_five.start()
         try:
             # Suppress stdout during test execution

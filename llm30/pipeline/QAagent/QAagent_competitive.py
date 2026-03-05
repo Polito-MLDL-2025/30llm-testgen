@@ -16,6 +16,7 @@ from llm30.pipeline.QAagent.utils.logging import write_plan_and_tests_qa, create
     init_difficulty_stats, write_difficulty_summaries
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
+from llm30.pipeline.QAagent.utils.model_selection import DEFAULT_PLAN_MODEL, resolve_competitive_models
 from llm30.pipeline.QAagent.agents.judge_agent import judge_selector_suites, judge_scorer_suite
 from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
@@ -107,20 +108,30 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
       5) Optionally compute analysis-only metrics for non-selected candidates (also filtered), in isolated workspace
     """
     problem_id = problem_name["task_id"]
+    plan_model_name = (metadata or {}).get("plan_model_name") or DEFAULT_PLAN_MODEL
+    test_model_name = (metadata or {}).get("test_model_name") or model_name
+    judge_model_name = (metadata or {}).get("judge_model_name") or test_model_name
     logger.info(f'Starting Competitive QA Agent pipeline for problem ID {problem_id}')
+    logger.info(
+        "Competitive model settings for problem ID %s: plan=%s, test=%s, judge=%s",
+        problem_id,
+        plan_model_name,
+        test_model_name,
+        judge_model_name,
+    )
     agent_results = []
     total_input_tokens = 0
     total_output_tokens = 0
 
     # 1) Generate candidates
     for i, code_architect_prompt in enumerate(code_architect_prompts):
-        plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, "qwen/qwen2.5-coder-32b-instruct",
+        plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, plan_model_name,
                                                                     logger=logger)
         total_input_tokens += plan_input_tokens
         total_output_tokens += plan_output_tokens
         try:
             tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan, test_generator_prompt,
-                                                                          model_name, logger=logger)
+                                                                          test_model_name, logger=logger)
         except Exception as e:
             logger.error(f"Error generating tests for candidate {i+1}: {e}")
             continue
@@ -162,7 +173,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
                             problem_name=problem_name,
                             candidate=agent,
                             prompt_path=judge_prompt_path,
-                            model=model_name,
+                            model=judge_model_name,
                             logger=logger,
                             candidate_idx=idx + 1,
                         )
@@ -196,7 +207,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
                     problem_name=problem_name,
                     candidates=agent_results,
                     prompt_path=judge_prompt_path,
-                    model=model_name,
+                    model=judge_model_name,
                     logger=logger,
                 )
 
@@ -336,6 +347,7 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
 
 def process_problem_competitive(problem, model, dataset, log_folder, code_architect_prompts, test_generator_prompt,
                                 logger, judge_prompt_path=None, judge_strategy="selector",
+                                plan_model_name=None, judge_model_name=None,
                                 timeout_seconds=300, max_attempts=3):
     try:
         result = competitive_qaAgent(
@@ -348,7 +360,10 @@ def process_problem_competitive(problem, model, dataset, log_folder, code_archit
             logger=logger,
             metadata={
             "judge_prompt_path": judge_prompt_path,
-            "judge_strategy": judge_strategy
+            "judge_strategy": judge_strategy,
+            "plan_model_name": plan_model_name,
+            "test_model_name": model,
+            "judge_model_name": judge_model_name,
             })
         if result is None:
             return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
@@ -372,7 +387,10 @@ def main(argv=None) -> int:
     args = parse_args(argv)
 
     # Setup
-    model = args.model
+    stage_models = resolve_competitive_models(args.model)
+    model = stage_models["test_model"]
+    plan_model = stage_models["plan_model"]
+    judge_model = stage_models["judge_model"]
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model, prefix="QAagent_competitive")
     logger = setup_logger(log_folder)
@@ -381,7 +399,10 @@ def main(argv=None) -> int:
     print(f"\n{'=' * 60}")
     print("QA Agent Competitive Test Case Generation Pipeline")
     print(f"{'=' * 60}")
-    print(f"Model: {model}")
+    print(f"Model (CLI --model): {args.model}")
+    print(f"Plan model: {plan_model}")
+    print(f"Test model: {model}")
+    print(f"Judge model: {judge_model}")
     print(f"Dataset: {dataset}")
     print(f"Judge Strategy: {args.judge_strategy}")
     print(f"Generator Prompt: {args.generator_prompt}")
@@ -483,8 +504,10 @@ def main(argv=None) -> int:
                 code_architect_prompts,
                 test_generator_prompt,
                 logger,
-                judge_prompt_path,
-                args.judge_strategy,
+                judge_prompt_path=judge_prompt_path,
+                judge_strategy=args.judge_strategy,
+                plan_model_name=plan_model,
+                judge_model_name=judge_model,
             ): i
             for i in range(start_index, end_index)
         }

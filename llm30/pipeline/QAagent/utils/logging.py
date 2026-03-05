@@ -116,6 +116,7 @@ def write_summary(log_folder, total_stats):
     evaluated = total_stats['evaluated']
     with open(os.path.join(log_folder, 'summary.txt'), 'w') as summary_file:
         summary_file.write(
+            f"Tasks evaluated: {evaluated}\n"
             f"Accuracy: {total_stats['accuracy'] / evaluated}\n"
             f"First five coverage: {total_stats['first_five_coverage'] / evaluated}\n"
             f"Coverage: {total_stats['coverage'] / evaluated}\n"
