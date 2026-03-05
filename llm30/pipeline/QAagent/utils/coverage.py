@@ -228,7 +228,7 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         cov_five = coverage.Coverage(
             concurrency='thread',
             data_suffix=True,
-            branch=branch_enabled,
+            branch=branch,
             include=[first_five_script],
         )
         cov_five.start()
