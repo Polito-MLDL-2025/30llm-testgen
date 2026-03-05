@@ -119,9 +119,15 @@ Scripts executed in order:
   4. run_singleagent_10x.py         - Single Agent (default + original prompts)
 
 Example usage:
-  # Run with default settings (10 runs per config, 20 tasks, 6 workers)
+  # Run with default settings
   python scripts/run_all.py
   
+  # HumanEval curated subset (20 selected problems, 10 runs)
+  python scripts/run_all.py --dataset humaneval --dataset-path llm30/pipeline/datasets/humaneval/problems_selected.jsonl --runs 10 --max-tasks 20 --max-workers 4
+
+  # HumanEval full dataset (164 problems, single run)
+  python scripts/run_all.py --dataset humaneval --dataset-path llm30/pipeline/datasets/humaneval/problems_original.jsonl --runs 1 --max-tasks 164 --max-workers 4
+
   # Custom configuration
   python scripts/run_all.py --runs 5 --max-tasks 10 --max-workers 4
   

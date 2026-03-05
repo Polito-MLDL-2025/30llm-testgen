@@ -2,6 +2,32 @@
 
 This directory contains scripts for running batch experiments with the LLM test generation pipelines.
 
+## HumanEval Presets Used in Results
+
+Use these commands to reproduce the two HumanEval settings reported in this project:
+
+```bash
+# 20 selected HumanEval problems (10 runs)
+python scripts/run_all.py \
+  --dataset humaneval \
+  --dataset-path llm30/pipeline/datasets/humaneval/problems_selected.jsonl \
+  --model", default="nvidia/nemotron-3-nano-30b-a3b \
+  --runs 10 \
+  --max-tasks 20 \
+  --max-workers 4
+
+# Full HumanEval (164 problems, 1 run)
+python scripts/run_all.py \
+  --dataset humaneval \
+  --dataset-path llm30/pipeline/datasets/humaneval/problems_original.jsonl \
+  --model", default="nvidia/nemotron-3-nano-30b-a3b \
+  --runs 1 \
+  --max-tasks 164 \
+  --max-workers 4
+```
+
+The same `--dataset-path` and `--max-tasks` pattern also works for each individual script (`run_qaagent_10x.py`, `run_qaagent_competitive_10x.py`, `run_qaagent_merge_10x.py`, `run_singleagent_10x.py`).
+
 ## Available Scripts
 
 ### 1. `run_all.py` - Run All Experiments
