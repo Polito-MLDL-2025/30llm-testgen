@@ -18,7 +18,10 @@ from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
 from llm30.pipeline.QAagent.utils.model_selection import DEFAULT_PLAN_MODEL, resolve_competitive_models
 from llm30.pipeline.QAagent.agents.judge_agent import judge_selector_suites, judge_scorer_suite
-from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
+from llm30.pipeline.QAagent.utils.coverage import (
+    get_coverage,
+    extract_line_and_branch_coverage_percentages,
+)
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 from scripts.classify_humaneval import get_difficulty_mapping
 
@@ -48,8 +51,12 @@ def save_all_agents_results(log_folder, problem_id, agent_results):
 
         # Save metrics in a more readable format
         metrics = (
+            f"first_five_line_coverage: {agent.get('first_five_line_coverage', 'N/A')}\n"
+            f"line_coverage: {agent.get('line_coverage', 'N/A')}\n"
             f"first_five_coverage: {agent.get('first_five_coverage', 'N/A')}\n"
             f"total_coverage: {agent.get('total_coverage', 'N/A')}\n"
+            f"first_five_branch_coverage: {agent.get('first_five_branch_coverage', 'N/A')}\n"
+            f"total_branch_coverage: {agent.get('total_branch_coverage', 'N/A')}\n"
             f"accuracy: {agent.get('accuracy', 'N/A')}\n"
             f"input_tokens: {agent['input_tokens']}\n"
             f"output_tokens: {agent['output_tokens']}\n"
@@ -275,12 +282,25 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
         problem_folder,
         problem_id
     )
-    first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
+    (
+        first_five_line_coverage,
+        total_line_coverage,
+        first_five_branch_coverage,
+        total_branch_coverage,
+        first_five_coverage,
+        total_coverage,
+    ) = (
+        extract_line_and_branch_coverage_percentages(problem_folder)
+    )
 
     best_agent["first_five_coverage_report"] = first_five_coverage_report
     best_agent["total_coverage_report"] = total_coverage_report
     best_agent["first_five_coverage"] = first_five_coverage
     best_agent["total_coverage"] = total_coverage
+    best_agent["first_five_line_coverage"] = first_five_line_coverage
+    best_agent["line_coverage"] = total_line_coverage
+    best_agent["first_five_branch_coverage"] = first_five_branch_coverage
+    best_agent["total_branch_coverage"] = total_branch_coverage
     best_agent["accuracy"] = accuracy
     best_agent["test_results"] = test_results
 
@@ -315,12 +335,25 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
             candidate_problem_folder,
             candidate_eval_id
         )
-        cand_first_five, cand_total = extract_coverage_percentages(candidate_problem_folder, problem_name)
+        (
+            cand_first_five_line,
+            cand_total_line,
+            cand_first_five_branch,
+            cand_total_branch,
+            cand_first_five,
+            cand_total,
+        ) = (
+            extract_line_and_branch_coverage_percentages(candidate_problem_folder)
+        )
 
         agent["first_five_coverage_report"] = cand_first_five_report
         agent["total_coverage_report"] = cand_total_report
         agent["first_five_coverage"] = cand_first_five
         agent["total_coverage"] = cand_total
+        agent["first_five_line_coverage"] = cand_first_five_line
+        agent["line_coverage"] = cand_total_line
+        agent["first_five_branch_coverage"] = cand_first_five_branch
+        agent["total_branch_coverage"] = cand_total_branch
         agent["accuracy"] = cand_accuracy
         agent["test_results"] = cand_test_results
 
@@ -341,7 +374,11 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
         best_agent["total_coverage"],
         best_agent["accuracy"],
         total_input_tokens,
-        total_output_tokens
+        total_output_tokens,
+        best_agent.get("first_five_branch_coverage", 0.0),
+        best_agent.get("total_branch_coverage", 0.0),
+        best_agent.get("first_five_line_coverage", 0.0),
+        best_agent.get("line_coverage", 0.0),
     )
 
 
@@ -366,21 +403,35 @@ def process_problem_competitive(problem, model, dataset, log_folder, code_archit
             "judge_model_name": judge_model_name,
             })
         if result is None:
-            return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
-        curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result
+            return problem["task_id"], 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        (
+            curr_first_five_mix_coverage_percentage,
+            curr_total_mix_coverage_percentage,
+            accuracy_percentage,
+            curr_num_input_tokens,
+            curr_num_output_tokens,
+            curr_first_five_branch_coverage_percentage,
+            curr_total_branch_coverage_percentage,
+            curr_first_five_line_coverage_percentage,
+            curr_total_line_coverage_percentage,
+        ) = result
         return (
             problem["task_id"],
             curr_num_input_tokens,
             curr_num_output_tokens,
-            curr_first_five_coverage_percentage,
-            curr_total_coverage_percentage,
+            curr_first_five_mix_coverage_percentage,
+            curr_total_mix_coverage_percentage,
             accuracy_percentage,
+            curr_first_five_branch_coverage_percentage,
+            curr_total_branch_coverage_percentage,
+            curr_first_five_line_coverage_percentage,
+            curr_total_line_coverage_percentage,
         )
     except Exception as e:
         logger.error(f'Error in problem ID {problem["task_id"]}: {e}')
         with open(os.path.join(log_folder, 'errors.txt'), 'a') as f:
             f.write(f'Error in problem ID {problem["task_id"]}: {e}\n')
-        return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
+        return problem["task_id"], 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
 def main(argv=None) -> int:
@@ -470,8 +521,12 @@ def main(argv=None) -> int:
     total_stats = {
         'input_tokens': 0,
         'output_tokens': 0,
+        'first_five_line_coverage': 0.0,
+        'line_coverage': 0.0,
         'first_five_coverage': 0.0,
         'coverage': 0.0,
+        'first_five_branch_coverage': 0.0,
+        'branch_coverage': 0.0,
         'accuracy': 0.0,
         'evaluated': 0
     }
@@ -520,7 +575,18 @@ def main(argv=None) -> int:
             try:
                 result = future.result()
                 if result:
-                    task_id, input_tokens, output_tokens, first_five_cov, total_cov, accuracy = result
+                    (
+                        task_id,
+                        input_tokens,
+                        output_tokens,
+                        first_five_cov,
+                        total_cov,
+                        accuracy,
+                        first_five_branch_cov,
+                        total_branch_cov,
+                        first_five_line_cov,
+                        total_line_cov,
+                    ) = result
                     update_total_stats(result, total_stats)
                     
                     # Update per-difficulty stats
@@ -530,8 +596,12 @@ def main(argv=None) -> int:
                             difficulty_stats[difficulty]['evaluated'] += 1
                             difficulty_stats[difficulty]['input_tokens'] += input_tokens
                             difficulty_stats[difficulty]['output_tokens'] += output_tokens
+                            difficulty_stats[difficulty]['first_five_line_coverage'] += first_five_line_cov
+                            difficulty_stats[difficulty]['line_coverage'] += total_line_cov
                             difficulty_stats[difficulty]['first_five_coverage'] += first_five_cov
                             difficulty_stats[difficulty]['coverage'] += total_cov
+                            difficulty_stats[difficulty]['first_five_branch_coverage'] += first_five_branch_cov
+                            difficulty_stats[difficulty]['branch_coverage'] += total_branch_cov
                             difficulty_stats[difficulty]['accuracy'] += accuracy
                     
                     write_summary(log_folder, total_stats)
@@ -540,7 +610,9 @@ def main(argv=None) -> int:
                     # Compact progress output with key metrics
                     print(f"[{completed}/{total_problems}] {task_id:<20} | "
                           f"Accuracy: {accuracy:>5.1f}% | "
-                          f"Coverage: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"LineCov: {first_five_line_cov:>5.1f}%→{total_line_cov:>5.1f}% | "
+                          f"Cov: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"BranchCov: {first_five_branch_cov:>5.1f}%→{total_branch_cov:>5.1f}% | "
                           f"Tokens: {input_tokens}+{output_tokens}")
             except Exception as e:
                 logger.error(f"Error processing problem at index {problem_index}: {e}")
@@ -553,8 +625,12 @@ def main(argv=None) -> int:
     if total_stats['evaluated'] > 0:
         print(f"Problems evaluated: {total_stats['evaluated']}")
         print(f"Average accuracy: {total_stats['accuracy'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five line coverage: {total_stats['first_five_line_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total line coverage: {total_stats['line_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Average first-five coverage: {total_stats['first_five_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Average total coverage: {total_stats['coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five branch coverage: {total_stats['first_five_branch_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total branch coverage: {total_stats['branch_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Total input tokens: {total_stats['input_tokens']}")
         print(f"Total output tokens: {total_stats['output_tokens']}")
     
