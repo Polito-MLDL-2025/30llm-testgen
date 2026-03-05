@@ -11,7 +11,7 @@ Use these commands to reproduce the two HumanEval settings reported in this proj
 python scripts/run_all.py \
   --dataset humaneval \
   --dataset-path llm30/pipeline/datasets/humaneval/problems_selected.jsonl \
-  --model", default="nvidia/nemotron-3-nano-30b-a3b \
+  --model nvidia/nemotron-3-nano-30b-a3b \
   --runs 10 \
   --max-tasks 20 \
   --max-workers 4
@@ -20,7 +20,7 @@ python scripts/run_all.py \
 python scripts/run_all.py \
   --dataset humaneval \
   --dataset-path llm30/pipeline/datasets/humaneval/problems_original.jsonl \
-  --model", default="nvidia/nemotron-3-nano-30b-a3b \
+  --model nvidia/nemotron-3-nano-30b-a3b \
   --runs 1 \
   --max-tasks 164 \
   --max-workers 4
