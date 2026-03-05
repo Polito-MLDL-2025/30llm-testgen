@@ -159,7 +159,11 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         import sys
         from io import StringIO as StdoutCapture
 
-        branch = os.environ.get("COVERAGE_BRANCH", "true").lower() == "false"
+        branch_env = os.environ.get("COVERAGE_BRANCH")
+        if branch_env is None:
+            branch = True
+        else:
+            branch = branch_env.strip().lower() in {"1", "true", "yes", "on"}
         cov_total = coverage.Coverage(concurrency='thread', data_suffix=True, branch=branch)
         try:
             cov_total.start()
