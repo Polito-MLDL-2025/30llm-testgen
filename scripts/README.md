@@ -2,6 +2,32 @@
 
 This directory contains scripts for running batch experiments with the LLM test generation pipelines.
 
+## HumanEval Presets Used in Results
+
+Use these commands to reproduce the two HumanEval settings reported in this project:
+
+```bash
+# 20 selected HumanEval problems (10 runs)
+python scripts/run_all.py \
+  --dataset humaneval \
+  --dataset-path llm30/pipeline/datasets/humaneval/problems_selected.jsonl \
+  --model nvidia/nemotron-3-nano-30b-a3b \
+  --runs 10 \
+  --max-tasks 20 \
+  --max-workers 4
+
+# Full HumanEval (164 problems, 1 run)
+python scripts/run_all.py \
+  --dataset humaneval \
+  --dataset-path llm30/pipeline/datasets/humaneval/problems_original.jsonl \
+  --model nvidia/nemotron-3-nano-30b-a3b \
+  --runs 1 \
+  --max-tasks 164 \
+  --max-workers 4
+```
+
+The same `--dataset-path` and `--max-tasks` pattern also works for each individual script (`run_qaagent_10x.py`, `run_qaagent_competitive_10x.py`, `run_qaagent_merge_10x.py`, `run_singleagent_10x.py`).
+
 ## Available Scripts
 
 ### 1. `run_all.py` - Run All Experiments
@@ -27,9 +53,9 @@ python scripts/run_all.py --model gpt-4o --max-tasks 50
 
 **Scripts executed (in order):**
 1. `run_qaagent_10x.py` - Standard QA Agent
-2. `run_qaagent_competitive_10x.py` - Competitive QA Agent
-3. `run_qaagent_merge_10x.py` - QA Agent with merge strategies
-4. `run_singleagent_10x.py` - Single Agent
+2. `run_qaagent_competitive_10x.py` - Competitive QA Agent (scorer + selector judge strategies)
+3. `run_qaagent_merge_10x.py` - QA Agent with merge strategies (accuracy/concat/llm)
+4. `run_singleagent_10x.py` - Single Agent (default/original/zero_shot prompts)
 
 ---
 
@@ -42,7 +68,7 @@ Runs QA Agent with both default and original prompts.
 
 **Usage:**
 ```bash
-# Default: 10 runs, 20 tasks, 6 workers
+# Default: 10 runs, 20 tasks, 4 workers
 python scripts/run_qaagent_10x.py
 
 # Custom configuration
@@ -56,11 +82,13 @@ python scripts/run_qaagent_10x.py --runs 5 --max-tasks 10 --max-workers 4 --mode
 ---
 
 ### 3. `run_qaagent_competitive_10x.py` - Competitive QA Agent
-Runs QA Agent Competitive (multiple code architect prompts) with both generator prompts.
+Runs QA Agent Competitive with both generator prompts and both judge strategies.
 
-**Configurations:**
-- `default` prompt
-- `original` prompt
+**Configurations (2 prompts × 2 judge strategies = 4 total):**
+- `default` + `scorer`
+- `default` + `selector`
+- `original` + `scorer`
+- `original` + `selector`
 
 **Usage:**
 ```bash
@@ -68,8 +96,8 @@ python scripts/run_qaagent_competitive_10x.py --runs 10 --max-tasks 20
 ```
 
 **Outputs:**
-- `logs/<timestamp>_qaagen_competitive_humaneval_<model>_default.csv`
-- `logs/<timestamp>_qaagen_competitive_humaneval_<model>_original.csv`
+- `logs/<timestamp>_qaagen_competitive_<dataset>_<model>_<prompt>_<judge_strategy>.csv`
+- Example: `logs/20260112_190234_qaagen_competitive_humaneval_gpt4o_default_scorer.csv`
 
 ---
 
@@ -77,16 +105,16 @@ python scripts/run_qaagent_competitive_10x.py --runs 10 --max-tasks 20
 Runs QA Agent with different merge strategies for combining test sets.
 
 **Configurations (2 prompts × 3 strategies = 6 total):**
+- `default` + `accuracy`
 - `default` + `concat`
-- `default` + `concat-enhanced`
 - `default` + `llm`
+- `original` + `accuracy`
 - `original` + `concat`
-- `original` + `concat-enhanced`
 - `original` + `llm`
 
 **Usage:**
 ```bash
-# Default: 2 runs per config (6 configs total)
+# Default: 10 runs per config (6 configs total)
 python scripts/run_qaagent_merge_10x.py
 
 # More runs per configuration
@@ -100,11 +128,12 @@ python scripts/run_qaagent_merge_10x.py --runs 5
 ---
 
 ### 5. `run_singleagent_10x.py` - Single Agent Experiments
-Runs Single Agent (direct test generation) with both prompts.
+Runs Single Agent (direct test generation) with all supported prompts.
 
 **Configurations:**
 - `default` prompt
 - `original` prompt
+- `zero_shot` prompt
 
 **Usage:**
 ```bash
@@ -114,6 +143,7 @@ python scripts/run_singleagent_10x.py --runs 10 --max-tasks 20
 **Outputs:**
 - `logs/<timestamp>_singleagent_humaneval_<model>_default.csv`
 - `logs/<timestamp>_singleagent_humaneval_<model>_original.csv`
+- `logs/<timestamp>_singleagent_humaneval_<model>_zero_shot.csv`
 
 ---
 
@@ -121,16 +151,16 @@ python scripts/run_singleagent_10x.py --runs 10 --max-tasks 20
 
 All scripts support the following arguments:
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--runs` | 10 (2 for merge) | Number of sequential runs per configuration |
-| `--dataset` | humaneval | Dataset to use (humaneval or mbpp) |
+| Argument | Default                        | Description |
+|----------|--------------------------------|-------------|
+| `--runs` | 10                             | Number of sequential runs per configuration |
+| `--dataset` | humaneval                      | Dataset to use (humaneval or mbpp) |
 | `--model` | nvidia/nemotron-3-nano-30b-a3b | LLM model name |
-| `--max-tasks` | 20 (2 for merge) | Maximum number of tasks per run |
-| `--max-workers` | 6 (2 for merge) | Number of parallel workers |
-| `--output-dir` | logs | Directory for CSV outputs |
-| `--predefine-name` | None | Base name for output files |
-
+| `--max-tasks` | 20                             | Maximum number of tasks per run |
+| `--max-workers` | 4                              | Number of parallel workers |
+| `--output-dir` | logs                           | Directory for CSV outputs |
+| `--predefine-name` | None                           | Base name for output files |
+| `--dataset-path` | None                           | Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset. |
 ---
 
 ## Output Format
@@ -146,6 +176,8 @@ Each script generates CSV files with the following columns:
 | `coverage` | Total code coverage (%) |
 | `input_tokens` | Total input tokens used |
 | `output_tokens` | Total output tokens used |
+
+All run scripts also generate per-difficulty CSVs (when available) with the same metric columns plus `tasks_evaluated`.
 
 **Example CSV:**
 ```csv
@@ -186,13 +218,13 @@ CSV saved to: logs/20260112_183045_qaagen_humaneval_gpt4o_default.csv
 
 Approximate time per run (depends on model, tasks, and workers):
 
-- **Single run** (20 tasks, 6 workers): ~3-5 minutes
+- **Single run** (20 tasks, 4 workers): ~3-5 minutes
 - **10 runs**: ~30-50 minutes per configuration
 - **run_qaagent_10x.py**: ~1-2 hours (2 configs)
-- **run_qaagent_competitive_10x.py**: ~1-2 hours (2 configs)
-- **run_qaagent_merge_10x.py**: ~30-60 minutes (6 configs × 2 runs default)
-- **run_singleagent_10x.py**: ~1-2 hours (2 configs)
-- **run_all.py**: ~4-8 hours total
+- **run_qaagent_competitive_10x.py**: ~2-4 hours (4 configs)
+- **run_qaagent_merge_10x.py**: scales with `--runs` (default: 6 configs × 10 runs)
+- **run_singleagent_10x.py**: ~2-3 hours (3 configs)
+- **run_all.py**: scales with selected scripts and `--runs` (often multiple hours)
 
 ---
 
@@ -265,10 +297,11 @@ python scripts/run_singleagent_10x.py --runs 20 --max-tasks 100
 logs/
 ├── 20260112_183045_qaagen_humaneval_gpt4o_default.csv
 ├── 20260112_183045_qaagen_humaneval_gpt4o_original.csv
-├── 20260112_190234_qaagen_competitive_humaneval_gpt4o_default.csv
-├── 20260112_190234_qaagen_competitive_humaneval_gpt4o_original.csv
+├── 20260112_190234_qaagen_competitive_humaneval_gpt4o_default_scorer.csv
+├── 20260112_190234_qaagen_competitive_humaneval_gpt4o_default_selector.csv
 ├── 20260112_193456_singleagent_humaneval_gpt4o_default.csv
 ├── 20260112_193456_singleagent_humaneval_gpt4o_original.csv
+├── 20260112_193456_singleagent_humaneval_gpt4o_zero_shot.csv
 ├── QAagent-20260112_180234/
 │   ├── summary.txt
 │   ├── details.txt

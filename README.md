@@ -100,46 +100,56 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 
 #### HumanEval - 20 Selected Problems (Average of 10 Runs)
 
-| Strategy             | Prompts                       | Execution Success Rate | Coverage |     Tokens |
-| :------------------- |:------------------------------|-----------------------:| -------: | ---------: |
-| Single Agent         | Zero Shot  (baseline)         |                  48.66 |    57.15 |  47,511.50 |
-| Single Agent         | Standard Few-Shot             |                  78.89 |    84.66 |  49,949.10 |
-| QA Agent             | Standard Few-Shot             |                  71.76 |    93.86 |  73,580.40 |
-| QA Agent Competitive | Standard Few-Shot             |                  87.17 |    90.08 | 245,753.70 |
-| QA Agent Merge       | Standard Few-Shot (Concat)    |                  72.94 |    93.58 | 241,940.20 |
-| QA Agent Merge       | Standard Few-Shot (Accuracy)  |                  91.00 |    88.87 | 235,632.30 |
-| Single Agent         | Augmented Few-Shot            |                  98.48 |    98.92 |  82,873.70 |
-| QA Agent             | Augmented Few-Shot            |                  97.65 |    99.40 | 106,228.40 |
-| QA Agent Competitive | Augmented Few-Shot            |                  98.93 |    99.20 | 333,891.50 |
-| QA Agent Merge       | Augmented Few-Shot (Concat)   |                  97.61 |    99.25 | 334,223.40 |
-| QA Agent Merge       | Augmented Few-Shot (Accuracy) |                 100.00 |    99.39 | 333,524.30 |
+| Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
+| :------------------------------------- | :------------------------ | ---------------------: | -------: | -------------: |
+| Single Agent                           | Zero Shot (Baseline)      |                  61.55 |    68.03 |       2,372.58 |
+| Single Agent                           | Standard Few-Shot         |                  88.38 |    96.57 |       2,287.66 |
+| QA Agent                               | Standard Few-Shot         |                  88.47 |    97.17 |       3,651.18 |
+| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot         |                  93.94 |    98.12 |      19,047.33 |
+| Multi-Agent Competitive (LLM selector) | Standard Few-Shot         |                  93.07 |    98.04 |      17,783.04 |
+| Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  86.59 |    91.78 |      12,278.32 |
+| Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  90.09 |    97.05 |      12,183.05 |
+| Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  90.86 |    98.76 |      21,144.74 |
+| Multi-Agent Merge (LLM-Multi-Steps)    | Standard Few-Shot         |                  93.73 |    97.69 |      34,127.11 |
+| Single Agent                           | Rule-Augmented Few-Shot   |                  98.00 |    98.44 |       4,143.58 |
+| Multi-Agent                            | Rule-Augmented Few-Shot   |                  98.36 |    99.25 |       5,404.83 |
+| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  98.15 |    98.96 |      23,382.68 |
+| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  97.55 |    99.11 |      22,155.49 |
+| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.57 |    99.23 |      17,386.96 |
+| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.96 |    99.34 |      17,666.72 |
+| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.50 |    99.19 |      24,080.56 |
 
 #### HumanEval - Full Dataset (164 Problems) (1 Run)
 
-| Strategy             | Prompts                        | Accuracy | Coverage |       Tokens |
-| :------------------- |:-------------------------------| -------: | -------: | -----------: |
-| Single Agent         | Zero Shot (baseline)           |    60.61 |    68.11 |   362,462.00 |
-| Single Agent         | Standard Few-Shot              |    86.65 |    91.93 |   405,078.00 |
-| QA Agent             | Standard Few-Shot              |    82.77 |    95.43 |   586,740.00 |
-| QA Agent Competitive | Standard Few-Shot              |    93.17 |    97.31 | 1,822,078.00 |
-| QA Agent Merge       | Standard Few-Shot (Concat)     |    81.17 |    93.82 | 1,845,532.00 |
-| QA Agent Merge       | Standard Few-Shot (Accuracy)   |    96.95 |    96.62 | 1,890,739.00 |
-| Single Agent         | Augmented Few-Shot             |    97.24 |    98.77 |   641,483.00 |
-| QA Agent             | Augmented Few-Shot             |    96.50 |    98.57 |   824,319.00 |
-| QA Agent Competitive | Augmented Few-Shot             |    96.92 |    97.92 | 2,564,180.00 |
-| QA Agent Merge       | Augmented Few-Shot (Concat)    |    95.41 |    98.27 | 2,575,158.00 |
-| QA Agent Merge       | Augmented Few-Shot  (Accuracy) |    97.56 |    97.35 | 2,560,891.00 |
+| Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
+| :------------------------------------- | :------------------------ | ---------------------: | -------: | -------------: |
+| Single Agent                           | Zero Shot (Baseline)      |                  62.76 |    69.61 |       2,241.52 |
+| Single Agent                           | Standard Few-Shot         |                  90.48 |    96.01 |       2,194.08 |
+| QA Agent                               | Standard Few-Shot         |                  90.58 |    97.66 |       3,437.36 |
+| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot         |                  92.64 |    98.41 |      18,181.55 |
+| Multi-Agent Competitive (LLM selector) | Standard Few-Shot         |                  94.03 |    98.96 |      17,168.58 |
+| Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  90.23 |    96.98 |      11,247.51 |
+| Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  89.43 |    97.72 |      11,517.63 |
+| Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  92.18 |    98.94 |      20,502.63 |
+| Multi-Agent Merge (LLM-Multi-Steps)    | Standard Few-Shot         |                  93.93 |    99.22 |      33,120.03 |
+| Single Agent                           | Rule-Augmented Few-Shot   |                  97.31 |    98.83 |       3,873.74 |
+| Multi-Agent                            | Rule-Augmented Few-Shot   |                  96.45 |    98.97 |       5,294.81 |
+| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  97.25 |    99.62 |      22,125.34 |
+| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  97.15 |    99.75 |      21,573.32 |
+| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.23 |    99.03 |      16,547.70 |
+| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.55 |    99.65 |      16,874.83 |
+| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.25 |    99.55 |      23,436.51 |
 
 
 
 ### Observations & Conclusion
-1.  **Prompt Engineering Matters**: Across all strategies, the "Augmented Few-Shot " (optimized) prompts consistently outperforms "Standard Few-Shot " and "Zero Shot" prompts. Zero Shot performance is significantly lower, highlighting the importance of few-shot examples or better instructions. **Prompt engineering is as important as strategy selection.** A well-designed prompt with explicit rules and examples can improve both Execution Success Rate and Coverage score by 20-50%. 
-2.  **High Accuracy in Selected Subset**: The **QA Agent Merge (Augmented Few-Shot , Accuracy)** strategy achieves a perfect **100% Execution Success Rate** on the 20-problem subset and 97.56% on full dataset, demonstrating exceptional reliability on this curated set.
-3. **Best coverage**: QA Agent Augmented Few-Shot on 20 selected (99.40%) and Single Agent Augmented Few-Shot on full (98.77%).
-4. **Competitive vs. Efficient**:
-    *   **Single Agent (Augmented Few-Shot  )** is highly efficient (lowest token usage among high performers) while maintaining very high execution success rate (97.24% on full dataset), making it a strong candidate for resource-constrained environments.
-    *   **QA Agent Competitive** and **Merge** strategies offer slight execution success rate gains (reaching 97.56%) but at a substantial cost in token usage (approx. 3-4x more tokens than Single Agent).
-5. **Cost-Benefit Analysis**: For most general use cases, the **Single Agent (Augmented Few-Shot)** strategy provides the best balance of performance and cost. However, for critical tasks where every percentage point of accuracy counts, **QA Agent Merge (Accuracy)** is the superior choice.
+1.  **Prompt Engineering Matters**: Across all strategies, **Rule-Augmented Few-Shot** consistently outperforms **Standard Few-Shot** and **Zero Shot**, confirming that prompt quality remains a major driver of both execution success and coverage.
+2.  **Best Execution Success Rate**: On the 20-problem subset, **Multi-Agent (Rule-Augmented Few-Shot)** reaches **98.36%**; on the full dataset, **Single Agent (Rule-Augmented Few-Shot)** achieves **97.31%**.
+3.  **Best Coverage**: On the 20-problem subset, **Multi-Agent Merge (Concat, Rule-Augmented Few-Shot)** reaches **99.34%** coverage; on the full dataset, **Multi-Agent Competitive (LLM selector, Rule-Augmented Few-Shot)** reaches **99.75%**.
+4.  **Competitive vs. Efficient**:
+    *   **Single Agent** variants remain the most token-efficient and still deliver strong performance.
+    *   **Multi-Agent** competitive/merge variants can improve peak metrics, but usually require significantly higher token budgets.
+5.  **Cost-Benefit Analysis**: For most practical workloads, **Single Agent (Rule-Augmented Few-Shot)** provides the strongest balance of quality and compute cost, while multi-agent variants are more suitable when maximizing top-end quality is worth the additional tokens.
 
 ## Running Experiment Scripts
 
@@ -161,14 +171,26 @@ export OPENAI_URL_BASE="https://your-openai-compatible-base-url"
 ```
 
 ### 2) Run scripts
-All experiment runners live in `scripts/`. Typical usage:
+All experiment runners live in `scripts/`.
 
 ```bash
-# Run the full experiment suite
-python scripts/run_all.py
+# HumanEval curated subset (20 selected problems, averaged over 10 runs)
+python scripts/run_all.py \
+  --dataset humaneval \
+  --dataset-path llm30/pipeline/datasets/humaneval/problems_selected.jsonl \
+  --model nvidia/nemotron-3-nano-30b-a3b \
+  --runs 10 \
+  --max-tasks 20 \
+  --max-workers 4
 
-# Run a single experiment script with custom settings
-python scripts/run_singleagent_10x.py --runs 5 --max-tasks 10 --max-workers 4
+# HumanEval full dataset (164 problems, single run)
+python scripts/run_all.py \
+  --dataset humaneval \
+  --dataset-path llm30/pipeline/datasets/humaneval/problems_original.jsonl \
+  --model nvidia/nemotron-3-nano-30b-a3b \
+  --runs 1 \
+  --max-tasks 164 \
+  --max-workers 4
 ```
 
 Available scripts:
@@ -183,54 +205,23 @@ Outputs are written to `logs/` as CSVs. For full argument lists, output naming, 
 ## Project Organization
 
 ```
-├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── docs               <- MkDocs project for documentation
-│
-├── models             <- Trained and serialized models, model predictions, or model summaries
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         llm30 and configuration for tools like ruff
-│
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures        <- Generated graphics and figures to be used in reporting
-│
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-│                         generated with `pip freeze > requirements.txt`
-│
-├── tests              <- Unit tests and fixtures for the project
-│
-├── adsp               <- Legacy template module retained for reference
-│
-└── llm30   <- Primary source code for use in this project.
-    │
-    ├── __init__.py             <- Makes llm30 a Python module
-    │
-    ├── config.py               <- Store useful variables and configuration
-    │
-    ├── dataset.py              <- Scripts to download or generate data
-    │
-    ├── features.py             <- Code to create features for modeling
-    │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
-    │
-    └── plots.py                <- Code to create visualizations
+30llm/
+├── llm30/              <- Core Python package and multi-agent pipelines
+├── scripts/            <- Experiment runners and orchestration utilities
+├── data/               <- Dataset assets and data artifacts
+├── logs/               <- Generated run logs and CSV summaries
+├── report/             <- Experiment reports and result summaries
+├── docs/               <- Documentation sources
+├── tests/              <- Test suite
+├── notebooks/          <- Exploratory analysis notebooks
+├── models/             <- Model artifacts
+├── references/         <- External references and notes
+├── temp/               <- Temporary workspace files
+├── README.md           <- Project overview and usage
+├── pyproject.toml      <- Project and tooling configuration
+├── requirements.txt    <- Python dependencies
+├── Makefile            <- Convenience commands
+└── LICENSE             <- Project license
 ```
 
 --------
