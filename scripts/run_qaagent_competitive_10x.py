@@ -208,186 +208,208 @@ def main(argv=None) -> int:
         "predefine_name": args.predefine_name,
     }
 
-    for generator_prompt in ("default", ):
-        argv = build_argv_agent(args, generator_prompt)
-        cache_path = build_cache_path(
-            output_dir=output_dir,
-            script_id="run_qaagent_competitive_10x",
-            config_tag=generator_prompt,
-            args_signature=args_signature,
-        )
-        rows_by_run = {
-            run_idx: row
-            for run_idx, row in load_run_cache(cache_path).items()
-            if 1 <= run_idx <= args.runs
-        }
-        rows: list[dict[str, str | int | float]] = []
-        
-        # Track difficulty stats across runs
-        difficulty_stats_by_run: dict[str, list[dict]] = {
-            "Easy / Basic": [],
-            "Medium / Intermediate": [],
-            "Medium-Hard / Complex": [],
-            "Hard / Advanced": [],
-        }
+    generator_prompts = ["default", "original"]
+    # Benchmark both judge modes per prompt:
+    # - scorer: score each candidate independently, then pick max score
+    # - selector: one joint ranking call that directly selects best candidate
+    judge_strategies = ["scorer", "selector"]
 
-        for run_idx in range(1, args.runs + 1):
-            cached_row = rows_by_run.get(run_idx)
-            if cached_row is not None:
-                # Load difficulty stats from cache if available
-                cached_difficulty_stats = cached_row.get("difficulty_stats", {})
-                for difficulty, stats_dict in cached_difficulty_stats.items():
-                    difficulty_stats_by_run[difficulty].append(stats_dict)
-                
-                # Add to CSV rows (exclude difficulty_stats field)
-                csv_row = {k: v for k, v in cached_row.items() if k != "difficulty_stats"}
-                rows.append(csv_row)
-                
+    for generator_prompt in generator_prompts:
+        for judge_strategy in judge_strategies:
+            argv = build_argv_agent(args, generator_prompt)
+            argv += ["--judge-strategy", judge_strategy]
+            config_tag = f"{generator_prompt}_{judge_strategy}"
+            cache_path = build_cache_path(
+                output_dir=output_dir,
+                script_id="run_qaagent_competitive_10x",
+                config_tag=config_tag,
+                args_signature=args_signature,
+            )
+            rows_by_run = {
+                run_idx: row
+                for run_idx, row in load_run_cache(cache_path).items()
+                if 1 <= run_idx <= args.runs
+            }
+            rows: list[dict[str, str | int | float]] = []
+
+            # Track difficulty stats across runs
+            difficulty_stats_by_run: dict[str, list[dict]] = {
+                "Easy / Basic": [],
+                "Medium / Intermediate": [],
+                "Medium-Hard / Complex": [],
+                "Hard / Advanced": [],
+            }
+
+            for run_idx in range(1, args.runs + 1):
+                cached_row = rows_by_run.get(run_idx)
+                if cached_row is not None:
+                    # Load difficulty stats from cache if available
+                    cached_difficulty_stats = cached_row.get("difficulty_stats", {})
+                    for difficulty, stats_dict in cached_difficulty_stats.items():
+                        difficulty_stats_by_run[difficulty].append(stats_dict)
+
+                    # Add to CSV rows (exclude difficulty_stats field)
+                    csv_row = {k: v for k, v in cached_row.items() if k != "difficulty_stats"}
+                    rows.append(csv_row)
+
+                    print(
+                        f"[{generator_prompt}/{judge_strategy}] Run {run_idx}/{args.runs}: using cached result",
+                        flush=True,
+                    )
+                    print(
+                        f"  → Run {run_idx} cached: "
+                        f"Accuracy={float(cached_row['accuracy']):.2f}%, "
+                        f"Coverage={float(cached_row['first_five_coverage']):.2f}%→{float(cached_row['coverage']):.2f}%, "
+                        f"Tokens={int(cached_row['input_tokens'])}+{int(cached_row['output_tokens'])}"
+                    )
+                    continue
+
+                before_logs = list_log_dirs(logs_root)
                 print(
-                    f"[{generator_prompt}] Run {run_idx}/{args.runs}: using cached result",
+                    f"[{generator_prompt}/{judge_strategy}] Run {run_idx}/{args.runs}: QAagent_competitive.main {' '.join(argv)}",
                     flush=True,
                 )
-                print(f"  → Run {run_idx} cached: "
-                      f"Accuracy={float(cached_row['accuracy']):.2f}%, "
-                      f"Coverage={float(cached_row['first_five_coverage']):.2f}%→{float(cached_row['coverage']):.2f}%, "
-                      f"Tokens={int(cached_row['input_tokens'])}+{int(cached_row['output_tokens'])}")
-                continue
+                run_agent_main(argv)
 
-            before_logs = list_log_dirs(logs_root)
-            print(
-                f"[{generator_prompt}] Run {run_idx}/{args.runs}: QAagent_competitive.main {' '.join(argv)}",
-                flush=True,
+                after_logs = list_log_dirs(logs_root)
+                new_logs = sorted(after_logs - before_logs, key=lambda path: path.stat().st_mtime)
+                if new_logs:
+                    log_dir = new_logs[-1]
+                else:
+                    all_logs = sorted(after_logs, key=lambda path: path.stat().st_mtime)
+                    if not all_logs:
+                        raise RuntimeError("No QAagent log directories found after run.")
+                    log_dir = all_logs[-1]
+
+                summary_path = log_dir / "summary.txt"
+                if not summary_path.exists():
+                    raise FileNotFoundError(f"Missing summary file: {summary_path}")
+
+                stats = parse_summary(summary_path)
+
+                # Collect difficulty stats for this run
+                run_difficulty_stats = aggregate_difficulty_stats(log_dir)
+                for difficulty, stats_dict in run_difficulty_stats.items():
+                    difficulty_stats_by_run[difficulty].append(stats_dict)
+
+                # Store in cache with difficulty stats
+                cache_row = {
+                    "run": run_idx,
+                    "log_dir": str(log_dir),
+                    **stats,
+                    "difficulty_stats": run_difficulty_stats,
+                }
+                rows_by_run[run_idx] = cache_row
+                save_run_cache(cache_path, rows_by_run)
+
+                # Store in CSV rows without difficulty stats
+                csv_row = {
+                    "run": run_idx,
+                    "log_dir": str(log_dir),
+                    **stats,
+                }
+                rows.append(csv_row)
+
+                # Print summary after each run
+                print(
+                    f"  → Run {run_idx} complete: "
+                    f"Accuracy={stats['accuracy']:.2f}%, "
+                    f"Coverage={stats['first_five_coverage']:.2f}%→{stats['coverage']:.2f}%, "
+                    f"Tokens={stats['input_tokens']}+{stats['output_tokens']}"
+                )
+
+            avg_accuracy = sum(row["accuracy"] for row in rows) / len(rows)
+            avg_first_five = sum(row["first_five_coverage"] for row in rows) / len(rows)
+            avg_coverage = sum(row["coverage"] for row in rows) / len(rows)
+            sum_input_tokens = sum(row["input_tokens"] for row in rows)
+            sum_output_tokens = sum(row["output_tokens"] for row in rows)
+
+            rows.append(
+                {
+                    "run": "aggregate",
+                    "log_dir": "",
+                    "accuracy": avg_accuracy,
+                    "first_five_coverage": avg_first_five,
+                    "coverage": avg_coverage,
+                    "input_tokens": sum_input_tokens,
+                    "output_tokens": sum_output_tokens,
+                }
             )
-            run_agent_main(argv)
 
-            after_logs = list_log_dirs(logs_root)
-            new_logs = sorted(after_logs - before_logs, key=lambda path: path.stat().st_mtime)
-            if new_logs:
-                log_dir = new_logs[-1]
-            else:
-                all_logs = sorted(after_logs, key=lambda path: path.stat().st_mtime)
-                if not all_logs:
-                    raise RuntimeError("No QAagent log directories found after run.")
-                log_dir = all_logs[-1]
+            output_path = output_dir / f"{base_name}_{generator_prompt}_{judge_strategy}.csv"
 
-            summary_path = log_dir / "summary.txt"
-            if not summary_path.exists():
-                raise FileNotFoundError(f"Missing summary file: {summary_path}")
-
-            stats = parse_summary(summary_path)
-            
-            # Collect difficulty stats for this run
-            run_difficulty_stats = aggregate_difficulty_stats(log_dir)
-            for difficulty, stats_dict in run_difficulty_stats.items():
-                difficulty_stats_by_run[difficulty].append(stats_dict)
-            
-            # Store in cache with difficulty stats
-            cache_row = {
-                "run": run_idx,
-                "log_dir": str(log_dir),
-                **stats,
-                "difficulty_stats": run_difficulty_stats,
-            }
-            rows_by_run[run_idx] = cache_row
-            save_run_cache(cache_path, rows_by_run)
-            
-            # Store in CSV rows without difficulty stats
-            csv_row = {
-                "run": run_idx,
-                "log_dir": str(log_dir),
-                **stats,
-            }
-            rows.append(csv_row)
-
-            # Print summary after each run
-            print(f"  → Run {run_idx} complete: "
-                  f"Accuracy={stats['accuracy']:.2f}%, "
-                  f"Coverage={stats['first_five_coverage']:.2f}%→{stats['coverage']:.2f}%, "
-                  f"Tokens={stats['input_tokens']}+{stats['output_tokens']}")
-
-        avg_accuracy = sum(row["accuracy"] for row in rows) / len(rows)
-        avg_first_five = sum(row["first_five_coverage"] for row in rows) / len(rows)
-        avg_coverage = sum(row["coverage"] for row in rows) / len(rows)
-        sum_input_tokens = sum(row["input_tokens"] for row in rows)
-        sum_output_tokens = sum(row["output_tokens"] for row in rows)
-
-        rows.append(
-            {
-                "run": "aggregate",
-                "log_dir": "",
-                "accuracy": avg_accuracy,
-                "first_five_coverage": avg_first_five,
-                "coverage": avg_coverage,
-                "input_tokens": sum_input_tokens,
-                "output_tokens": sum_output_tokens,
-            }
-        )
-
-        output_path = output_dir / f"{base_name}_{generator_prompt}.csv"
-
-        fieldnames = [
-            "run",
-            "log_dir",
-            "accuracy",
-            "first_five_coverage",
-            "coverage",
-            "input_tokens",
-            "output_tokens",
-        ]
-        with output_path.open("w", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
-        
-        # Write per-difficulty CSV files
-        for difficulty, diff_rows in difficulty_stats_by_run.items():
-            if not diff_rows:  # Skip if no data for this difficulty
-                continue
-            
-            safe_diff_name = difficulty.replace(" / ", "_").replace(" ", "_").lower()
-            diff_output_path = output_dir / f"{base_name}_{generator_prompt}_{safe_diff_name}.csv"
-            
-            # Calculate aggregate stats for this difficulty
-            diff_avg_acc = sum(r["accuracy"] for r in diff_rows) / len(diff_rows)
-            diff_avg_first_five = sum(r["first_five_coverage"] for r in diff_rows) / len(diff_rows)
-            diff_avg_cov = sum(r["coverage"] for r in diff_rows) / len(diff_rows)
-            diff_sum_input = sum(r["input_tokens"] for r in diff_rows)
-            diff_sum_output = sum(r["output_tokens"] for r in diff_rows)
-            
-            diff_csv_rows = [
-                {"run": i + 1, **diff_rows[i]} for i in range(len(diff_rows))
+            fieldnames = [
+                "run",
+                "log_dir",
+                "accuracy",
+                "first_five_coverage",
+                "coverage",
+                "input_tokens",
+                "output_tokens",
             ]
-            diff_csv_rows.append({
-                "run": "aggregate",
-                "tasks_evaluated": sum(r["tasks_evaluated"] for r in diff_rows) // len(diff_rows),
-                "accuracy": diff_avg_acc,
-                "first_five_coverage": diff_avg_first_five,
-                "coverage": diff_avg_cov,
-                "input_tokens": diff_sum_input,
-                "output_tokens": diff_sum_output,
-            })
-            
-            diff_fieldnames = ["run", "tasks_evaluated", "accuracy", "first_five_coverage", 
-                               "coverage", "input_tokens", "output_tokens"]
-            with diff_output_path.open("w", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=diff_fieldnames)
+            with output_path.open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fieldnames)
                 writer.writeheader()
-                writer.writerows(diff_csv_rows)
+                writer.writerows(rows)
 
-        # Print summary for this configuration
-        print(f"\n{'=' * 60}")
-        print(f"[{generator_prompt}] Configuration Complete - Summary of {args.runs} runs:")
-        print(f"{'=' * 60}")
-        print(f"Average Accuracy:          {avg_accuracy:.2f}%")
-        print(f"Average First-Five Cov:    {avg_first_five:.2f}%")
-        print(f"Average Total Coverage:    {avg_coverage:.2f}%")
-        print(f"Total Input Tokens:        {sum_input_tokens:,}")
-        print(f"Total Output Tokens:       {sum_output_tokens:,}")
-        print(f"CSV saved to: {output_path}")
-        num_diff_csvs = sum(1 for d in difficulty_stats_by_run.values() if d)
-        if num_diff_csvs > 0:
-            print(f"Difficulty CSVs: {num_diff_csvs} files")
-        print(f"{'=' * 60}\n")
+            # Write per-difficulty CSV files
+            for difficulty, diff_rows in difficulty_stats_by_run.items():
+                if not diff_rows:  # Skip if no data for this difficulty
+                    continue
+
+                safe_diff_name = difficulty.replace(" / ", "_").replace(" ", "_").lower()
+                diff_output_path = output_dir / f"{base_name}_{generator_prompt}_{judge_strategy}_{safe_diff_name}.csv"
+
+                # Calculate aggregate stats for this difficulty
+                diff_avg_acc = sum(r["accuracy"] for r in diff_rows) / len(diff_rows)
+                diff_avg_first_five = sum(r["first_five_coverage"] for r in diff_rows) / len(diff_rows)
+                diff_avg_cov = sum(r["coverage"] for r in diff_rows) / len(diff_rows)
+                diff_sum_input = sum(r["input_tokens"] for r in diff_rows)
+                diff_sum_output = sum(r["output_tokens"] for r in diff_rows)
+
+                diff_csv_rows = [
+                    {"run": i + 1, **diff_rows[i]} for i in range(len(diff_rows))
+                ]
+                diff_csv_rows.append(
+                    {
+                        "run": "aggregate",
+                        "tasks_evaluated": sum(r["tasks_evaluated"] for r in diff_rows) // len(diff_rows),
+                        "accuracy": diff_avg_acc,
+                        "first_five_coverage": diff_avg_first_five,
+                        "coverage": diff_avg_cov,
+                        "input_tokens": diff_sum_input,
+                        "output_tokens": diff_sum_output,
+                    }
+                )
+
+                diff_fieldnames = [
+                    "run",
+                    "tasks_evaluated",
+                    "accuracy",
+                    "first_five_coverage",
+                    "coverage",
+                    "input_tokens",
+                    "output_tokens",
+                ]
+                with diff_output_path.open("w", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=diff_fieldnames)
+                    writer.writeheader()
+                    writer.writerows(diff_csv_rows)
+
+            # Print summary for this configuration
+            print(f"\n{'=' * 60}")
+            print(f"[{generator_prompt}/{judge_strategy}] Configuration Complete - Summary of {args.runs} runs:")
+            print(f"{'=' * 60}")
+            print(f"Average Accuracy:          {avg_accuracy:.2f}%")
+            print(f"Average First-Five Cov:    {avg_first_five:.2f}%")
+            print(f"Average Total Coverage:    {avg_coverage:.2f}%")
+            print(f"Total Input Tokens:        {sum_input_tokens:,}")
+            print(f"Total Output Tokens:       {sum_output_tokens:,}")
+            print(f"CSV saved to: {output_path}")
+            num_diff_csvs = sum(1 for d in difficulty_stats_by_run.values() if d)
+            if num_diff_csvs > 0:
+                print(f"Difficulty CSVs: {num_diff_csvs} files")
+            print(f"{'=' * 60}\n")
     return 0
 
 
