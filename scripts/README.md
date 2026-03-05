@@ -147,16 +147,16 @@ python scripts/run_singleagent_10x.py --runs 10 --max-tasks 20
 
 All scripts support the following arguments:
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--runs` | 10 (2 for merge) | Number of sequential runs per configuration |
-| `--dataset` | humaneval | Dataset to use (humaneval or mbpp) |
+| Argument | Default                        | Description |
+|----------|--------------------------------|-------------|
+| `--runs` | 10                             | Number of sequential runs per configuration |
+| `--dataset` | humaneval                      | Dataset to use (humaneval or mbpp) |
 | `--model` | nvidia/nemotron-3-nano-30b-a3b | LLM model name |
-| `--max-tasks` | 20 (2 for merge) | Maximum number of tasks per run |
-| `--max-workers` | 6 (2 for merge) | Number of parallel workers |
-| `--output-dir` | logs | Directory for CSV outputs |
-| `--predefine-name` | None | Base name for output files |
-
+| `--max-tasks` | 20                             | Maximum number of tasks per run |
+| `--max-workers` | 4                              | Number of parallel workers |
+| `--output-dir` | logs                           | Directory for CSV outputs |
+| `--predefine-name` | None                           | Base name for output files |
+| `--dataset-path"` | None                           | Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset. |
 ---
 
 ## Output Format
