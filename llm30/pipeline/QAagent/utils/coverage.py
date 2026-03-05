@@ -181,11 +181,9 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         import sys
         from io import StringIO as StdoutCapture
 
-        branch_env = os.environ.get("COVERAGE_BRANCH")
-        if branch_env is None:
-            branch = True
-        else:
-            branch = branch_env.strip().lower() in {"1", "true", "yes", "on"}
+        ## always report branch
+        branch = True
+
         total_script = os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage', 'total_coverage.py')
         first_five_script = os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage', 'first_five_coverage.py')
 
