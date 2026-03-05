@@ -33,3 +33,17 @@ def compute_avg_tokens_per_task(input_tokens: int, output_tokens: int, tasks_eva
     if tasks_evaluated <= 0:
         return 0.0
     return (input_tokens + output_tokens) / tasks_evaluated
+
+
+def compute_avg_tokens_per_task_with_runs(
+    input_tokens: int,
+    output_tokens: int,
+    tasks_per_run: int,
+    runs: int,
+) -> float:
+    if tasks_per_run <= 0:
+        return 0.0
+    denominator = tasks_per_run * runs if runs > 1 else tasks_per_run
+    if denominator <= 0:
+        return 0.0
+    return (input_tokens + output_tokens) / denominator
