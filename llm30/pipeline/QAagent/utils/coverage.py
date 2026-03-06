@@ -148,6 +148,14 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
     os.makedirs(os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage'), exist_ok=True)
     os.makedirs(os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage'), exist_ok=True)
 
+    # Measure coverage on the solution module only, not on test/assert lines.
+    total_solution = os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage', 'solution.py')
+    first_five_solution = os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage', 'solution.py')
+    with open(total_solution, 'w') as f:
+        f.write(code_string + "\n")
+    with open(first_five_solution, 'w') as f:
+        f.write(code_string + "\n")
+
     raw_blocks = extract_assert_blocks(test_string)
 
     # Drop assert blocks that produce invalid syntax when combined with the solution code.
@@ -160,9 +168,12 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
 
     valid_blocks = [block for block in raw_blocks if _is_valid_block(block)]
 
-    # Write the combined code and test string to separate files for full and first five tests
+    # Build runner scripts that import the solution and execute asserts.
     with open(os.path.join(log_folder, f'problem_{problem_id}', 'total_coverage', 'total_coverage.py'), 'w') as f2:
-        f2.write(code_string + "\n" + "\n".join(valid_blocks))
+        f2.write("import os\nimport runpy\n")
+        f2.write("_sol = runpy.run_path(os.path.join(os.path.dirname(__file__), 'solution.py'))\n")
+        f2.write("globals().update(_sol)\n\n")
+        f2.write("\n".join(valid_blocks))
 
     # Select the first five assert blocks to avoid cutting a test mid-assert.
     if valid_blocks:
@@ -172,8 +183,10 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
         first_five_tests = ""
 
     with open(os.path.join(log_folder, f'problem_{problem_id}', 'first_five_coverage', 'first_five_coverage.py'), 'w') as f2:
-        f2.write(code_string)
-        f2.write("\n" + first_five_tests)
+        f2.write("import os\nimport runpy\n")
+        f2.write("_sol = runpy.run_path(os.path.join(os.path.dirname(__file__), 'solution.py'))\n")
+        f2.write("globals().update(_sol)\n\n")
+        f2.write(first_five_tests)
 
     # Coverage is not thread-safe; serialize coverage execution across workers.
     with _COVERAGE_LOCK:
@@ -191,7 +204,7 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
             concurrency='thread',
             data_suffix=True,
             branch=branch,
-            include=[total_script],
+            include=[total_solution],
         )
         try:
             cov_total.start()
@@ -227,7 +240,7 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
             concurrency='thread',
             data_suffix=True,
             branch=branch,
-            include=[first_five_script],
+            include=[first_five_solution],
         )
         cov_five.start()
         try:
