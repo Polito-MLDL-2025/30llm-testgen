@@ -120,15 +120,11 @@ def _get_pipeline_logger():
 _COVERAGE_LOCK = threading.Lock()
 
 
-def _extract_line_and_branch_from_json(json_path):
-    with open(json_path, "r", encoding="utf-8") as file:
-        payload = json.load(file)
-
-    totals = payload.get("totals", {})
-    covered_lines = totals.get("covered_lines", 0)
-    num_statements = totals.get("num_statements", 0)
-    covered_branches = totals.get("covered_branches", 0)
-    num_branches = totals.get("num_branches", 0)
+def _coverage_percentages_from_summary(summary):
+    covered_lines = summary.get("covered_lines", 0)
+    num_statements = summary.get("num_statements", 0)
+    covered_branches = summary.get("covered_branches", 0)
+    num_branches = summary.get("num_branches", 0)
 
     line_coverage = (covered_lines / num_statements * 100.0) if num_statements else 0.0
     # If there are no branches, coverage.py conceptually has no branch obligations.
@@ -140,6 +136,61 @@ def _extract_line_and_branch_from_json(json_path):
         else 0.0
     )
     return line_coverage, branch_coverage, mixed_coverage
+
+
+def _entry_point_summary(payload, entry_point):
+    files = payload.get("files", {})
+    if not files:
+        return None
+
+    exact_matches = []
+    suffix_matches = []
+
+    for file_data in files.values():
+        functions = file_data.get("functions", {})
+        if entry_point in functions:
+            summary = functions.get(entry_point, {}).get("summary", {})
+            exact_matches.append(summary)
+            continue
+
+        for function_name, function_data in functions.items():
+            if not function_name:
+                continue
+            if function_name.split(".")[-1] == entry_point:
+                summary = function_data.get("summary", {})
+                suffix_matches.append(summary)
+
+    matched = exact_matches or suffix_matches
+    if not matched:
+        return None
+
+    aggregate = {
+        "covered_lines": 0,
+        "num_statements": 0,
+        "covered_branches": 0,
+        "num_branches": 0,
+    }
+    for summary in matched:
+        aggregate["covered_lines"] += summary.get("covered_lines", 0)
+        aggregate["num_statements"] += summary.get("num_statements", 0)
+        aggregate["covered_branches"] += summary.get("covered_branches", 0)
+        aggregate["num_branches"] += summary.get("num_branches", 0)
+    return aggregate
+
+
+def _extract_line_and_branch_from_json(json_path, entry_point=None):
+    with open(json_path, "r", encoding="utf-8") as file:
+        payload = json.load(file)
+
+    if entry_point:
+        function_summary = _entry_point_summary(payload, entry_point)
+        if function_summary is None:
+            return 0.0, 0.0, 0.0
+        return _coverage_percentages_from_summary(function_summary)
+
+    totals = payload.get("totals", {})
+    return _coverage_percentages_from_summary(totals)
+
 
 def get_coverage(code_string, test_string, problem_id, log_folder):
     logger = _get_pipeline_logger()
@@ -273,7 +324,7 @@ def get_coverage(code_string, test_string, problem_id, log_folder):
 
     return first_five_coverage_report, total_coverage_report
 
-def extract_line_and_branch_coverage_percentages(problem_folder):
+def extract_line_and_branch_coverage_percentages(problem_folder, entry_point=None):
     logger = _get_pipeline_logger()
 
     first_five_json = os.path.join(problem_folder, "first_five_coverage", "coverage.json")
@@ -287,8 +338,19 @@ def extract_line_and_branch_coverage_percentages(problem_folder):
     total_mixed = 0.0
 
     try:
-        first_five_line, first_five_branch, first_five_mixed = _extract_line_and_branch_from_json(first_five_json)
-        total_line, total_branch, total_mixed = _extract_line_and_branch_from_json(total_json)
+        first_five_line, first_five_branch, first_five_mixed = _extract_line_and_branch_from_json(
+            first_five_json,
+            entry_point=entry_point,
+        )
+        total_line, total_branch, total_mixed = _extract_line_and_branch_from_json(
+            total_json,
+            entry_point=entry_point,
+        )
+        if entry_point and first_five_line == 0.0 and total_line == 0.0:
+            logger.warning(
+                f"Entry point '{entry_point}' not found or not executed for {problem_folder}; "
+                "coverage values default to 0."
+            )
     except (OSError, ValueError, json.JSONDecodeError) as e:
         logger.warning(f"Line/branch coverage extraction failed for {problem_folder}: {e}")
 

@@ -270,7 +270,10 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         first_five_coverage,
         total_coverage,
     ) = (
-        extract_line_and_branch_coverage_percentages(problem_folder)
+        extract_line_and_branch_coverage_percentages(
+            problem_folder,
+            entry_point=problem_name.get("entry_point"),
+        )
     )
     logger.info(
         f"Step: metrics for problem ID {problem_id} - "
@@ -355,7 +358,13 @@ def main(argv=None) -> int:
     args = parse_args(argv)
 
     # Setup
-    stage_models = resolve_merge_models(args.model)
+    stage_models = resolve_merge_models(
+        args.model,
+        qaagent_model=args.qaagent_model,
+        qaagent_plan_model=args.qaagent_plan_model,
+        qaagent_test_model=args.qaagent_test_model,
+        qaagent_merge_model=args.qaagent_merge_model,
+    )
     model = stage_models["test_model"]
     plan_model = stage_models["plan_model"]
     merge_model = stage_models["merge_model"]

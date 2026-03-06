@@ -290,7 +290,10 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
         first_five_coverage,
         total_coverage,
     ) = (
-        extract_line_and_branch_coverage_percentages(problem_folder)
+        extract_line_and_branch_coverage_percentages(
+            problem_folder,
+            entry_point=problem_name.get("entry_point"),
+        )
     )
 
     best_agent["first_five_coverage_report"] = first_five_coverage_report
@@ -343,7 +346,10 @@ def competitive_qaAgent(problem_name, dataset, model_name, code_architect_prompt
             cand_first_five,
             cand_total,
         ) = (
-            extract_line_and_branch_coverage_percentages(candidate_problem_folder)
+            extract_line_and_branch_coverage_percentages(
+                candidate_problem_folder,
+                entry_point=problem_name.get("entry_point"),
+            )
         )
 
         agent["first_five_coverage_report"] = cand_first_five_report
@@ -438,7 +444,13 @@ def main(argv=None) -> int:
     args = parse_args(argv)
 
     # Setup
-    stage_models = resolve_competitive_models(args.model)
+    stage_models = resolve_competitive_models(
+        args.model,
+        qaagent_model=args.qaagent_model,
+        qaagent_plan_model=args.qaagent_plan_model,
+        qaagent_test_model=args.qaagent_test_model,
+        qaagent_judge_model=args.qaagent_judge_model,
+    )
     model = stage_models["test_model"]
     plan_model = stage_models["plan_model"]
     judge_model = stage_models["judge_model"]

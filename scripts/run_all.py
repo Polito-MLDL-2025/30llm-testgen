@@ -110,6 +110,16 @@ def run_script(
     ]
     if args.dataset_path:
         argv.extend(["--dataset-path", str(args.dataset_path)])
+    if args.qaagent_model:
+        argv.extend(["--qaagent-model", args.qaagent_model])
+    if args.qaagent_plan_model:
+        argv.extend(["--qaagent-plan-model", args.qaagent_plan_model])
+    if args.qaagent_test_model:
+        argv.extend(["--qaagent-test-model", args.qaagent_test_model])
+    if args.qaagent_judge_model:
+        argv.extend(["--qaagent-judge-model", args.qaagent_judge_model])
+    if args.qaagent_merge_model:
+        argv.extend(["--qaagent-merge-model", args.qaagent_merge_model])
 
     if args.predefine_name:
         # Add timestamp prefix to distinguish between different run_all executions
@@ -213,10 +223,11 @@ Example usage:
 
     # Define all scripts to run
     all_scripts = [
+        ("singleagent", "run_singleagent_10x.py"),
         ("qaagent", "run_qaagent_10x.py"),
         ("competitive", "run_qaagent_competitive_10x.py"),
         ("merge", "run_qaagent_merge_10x.py"),
-        ("singleagent", "run_singleagent_10x.py"),
+
     ]
 
     # Filter out skipped scripts
@@ -235,6 +246,16 @@ Example usage:
     print(f"Runs per config: {args.runs}")
     print(f"Dataset:       {args.dataset}")
     print(f"Model:         {args.model}")
+    if args.qaagent_model:
+        print(f"QAAGENT_MODEL: {args.qaagent_model}")
+    if args.qaagent_plan_model:
+        print(f"QAAGENT_PLAN_MODEL: {args.qaagent_plan_model}")
+    if args.qaagent_test_model:
+        print(f"QAAGENT_TEST_MODEL: {args.qaagent_test_model}")
+    if args.qaagent_judge_model:
+        print(f"QAAGENT_JUDGE_MODEL: {args.qaagent_judge_model}")
+    if args.qaagent_merge_model:
+        print(f"QAAGENT_MERGE_MODEL: {args.qaagent_merge_model}")
     print(f"Max tasks:     {args.max_tasks}")
     print(f"Max workers:   {args.max_workers}")
     print(f"Output dir:    {args.output_dir}")

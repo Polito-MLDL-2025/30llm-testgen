@@ -215,6 +215,11 @@ def main(argv=None) -> int:
     args_signature = {
         "dataset": args.dataset,
         "model": args.model,
+        "qaagent_model": args.qaagent_model,
+        "qaagent_plan_model": args.qaagent_plan_model,
+        "qaagent_test_model": args.qaagent_test_model,
+        "qaagent_judge_model": args.qaagent_judge_model,
+        "qaagent_merge_model": args.qaagent_merge_model,
         "runs": args.runs,
         "max_tasks": args.max_tasks,
         "max_workers": args.max_workers,
@@ -222,11 +227,11 @@ def main(argv=None) -> int:
         "predefine_name": args.predefine_name,
     }
 
-    # generator_prompts = ("default")
+    # generator_prompts = ["original"]
     generator_prompts = ["default", "original"]
-    # merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
-    # merge_strategies = ("accuracy")
-    merge_strategies = ["accuracy", "concat", "llm"]
+    merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
+    # merge_strategies = ["accuracy"]
+    # merge_strategies = ["accuracy", "concat", "llm"]
 
     for generator_prompt in generator_prompts:
         for merge_strategy in merge_strategies:

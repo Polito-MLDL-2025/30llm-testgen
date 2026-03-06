@@ -113,7 +113,10 @@ def singleAgent(problem_name, dataset, model_name, code_architect_prompt, test_g
         first_five_coverage,
         total_coverage,
     ) = (
-        extract_line_and_branch_coverage_percentages(coverage_folder)
+        extract_line_and_branch_coverage_percentages(
+            coverage_folder,
+            entry_point=problem_name.get("entry_point"),
+        )
     )
 
     # Log results

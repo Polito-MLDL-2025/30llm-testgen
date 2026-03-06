@@ -44,6 +44,41 @@ def parse_args(argv=None):
         help="Specify the model to use."
     )
     parser.add_argument(
+        "--qaagent-model",
+        "--QAAGENT_MODEL",
+        dest="qaagent_model",
+        default=None,
+        help="Override QAAGENT_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-plan-model",
+        "--QAAGENT_PLAN_MODEL",
+        dest="qaagent_plan_model",
+        default=None,
+        help="Override QAAGENT_PLAN_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-test-model",
+        "--QAAGENT_TEST_MODEL",
+        dest="qaagent_test_model",
+        default=None,
+        help="Override QAAGENT_TEST_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-judge-model",
+        "--QAAGENT_JUDGE_MODEL",
+        dest="qaagent_judge_model",
+        default=None,
+        help="Override QAAGENT_JUDGE_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-merge-model",
+        "--QAAGENT_MERGE_MODEL",
+        dest="qaagent_merge_model",
+        default=None,
+        help="Override QAAGENT_MERGE_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
         "--max-tasks",
         type=int,
         default=None,

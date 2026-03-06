@@ -18,6 +18,13 @@ def _read_env_model(env_name):
     return value if value else None
 
 
+def _read_cli_model(value):
+    if value is None:
+        return None
+    value = value.strip()
+    return value if value else None
+
+
 def _first_non_empty(*values):
     for value in values:
         if value:
@@ -25,17 +32,30 @@ def _first_non_empty(*values):
     return None
 
 
-def resolve_qaagent_models(cli_model):
+def resolve_qaagent_models(
+    cli_model,
+    qaagent_model=None,
+    qaagent_plan_model=None,
+    qaagent_test_model=None,
+):
+    cli_shared_model = _read_cli_model(qaagent_model)
+    cli_plan_model = _read_cli_model(qaagent_plan_model)
+    cli_test_model = _read_cli_model(qaagent_test_model)
     shared_model = _first_non_empty(
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_MODEL),
         _read_env_model(ENV_OPENAI_API_MODEL),
     )
     plan_model = _first_non_empty(
+        cli_plan_model,
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_PLAN_MODEL),
         shared_model,
         DEFAULT_PLAN_MODEL,
     )
     test_model = _first_non_empty(
+        cli_test_model,
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_TEST_MODEL),
         shared_model,
         cli_model,
@@ -46,13 +66,29 @@ def resolve_qaagent_models(cli_model):
     }
 
 
-def resolve_merge_models(cli_model):
-    qaagent_models = resolve_qaagent_models(cli_model)
+def resolve_merge_models(
+    cli_model,
+    qaagent_model=None,
+    qaagent_plan_model=None,
+    qaagent_test_model=None,
+    qaagent_merge_model=None,
+):
+    qaagent_models = resolve_qaagent_models(
+        cli_model,
+        qaagent_model=qaagent_model,
+        qaagent_plan_model=qaagent_plan_model,
+        qaagent_test_model=qaagent_test_model,
+    )
+    cli_shared_model = _read_cli_model(qaagent_model)
+    cli_merge_model = _read_cli_model(qaagent_merge_model)
     shared_model = _first_non_empty(
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_MODEL),
         _read_env_model(ENV_OPENAI_API_MODEL),
     )
     merge_model = _first_non_empty(
+        cli_merge_model,
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_MERGE_MODEL),
         shared_model,
         qaagent_models["test_model"],
@@ -64,13 +100,29 @@ def resolve_merge_models(cli_model):
     }
 
 
-def resolve_competitive_models(cli_model):
-    qaagent_models = resolve_qaagent_models(cli_model)
+def resolve_competitive_models(
+    cli_model,
+    qaagent_model=None,
+    qaagent_plan_model=None,
+    qaagent_test_model=None,
+    qaagent_judge_model=None,
+):
+    qaagent_models = resolve_qaagent_models(
+        cli_model,
+        qaagent_model=qaagent_model,
+        qaagent_plan_model=qaagent_plan_model,
+        qaagent_test_model=qaagent_test_model,
+    )
+    cli_shared_model = _read_cli_model(qaagent_model)
+    cli_judge_model = _read_cli_model(qaagent_judge_model)
     shared_model = _first_non_empty(
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_MODEL),
         _read_env_model(ENV_OPENAI_API_MODEL),
     )
     judge_model = _first_non_empty(
+        cli_judge_model,
+        cli_shared_model,
         _read_env_model(ENV_QAAGENT_JUDGE_MODEL),
         shared_model,
         qaagent_models["test_model"],

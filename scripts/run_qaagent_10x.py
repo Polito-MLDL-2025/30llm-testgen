@@ -220,6 +220,11 @@ def main(argv=None) -> int:
     args_signature = {
         "dataset": args.dataset,
         "model": args.model,
+        "qaagent_model": args.qaagent_model,
+        "qaagent_plan_model": args.qaagent_plan_model,
+        "qaagent_test_model": args.qaagent_test_model,
+        "qaagent_judge_model": args.qaagent_judge_model,
+        "qaagent_merge_model": args.qaagent_merge_model,
         "runs": args.runs,
         "max_tasks": args.max_tasks,
         "max_workers": args.max_workers,
