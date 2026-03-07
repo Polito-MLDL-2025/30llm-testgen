@@ -223,9 +223,9 @@ Example usage:
 
     # Define all scripts to run
     all_scripts = [
-        # ("singleagent", "run_singleagent_10x.py"),
-        # ("qaagent", "run_qaagent_10x.py"),
-        # ("competitive", "run_qaagent_competitive_10x.py"),
+        ("singleagent", "run_singleagent_10x.py"),
+        ("qaagent", "run_qaagent_10x.py"),
+        ("competitive", "run_qaagent_competitive_10x.py"),
         ("merge", "run_qaagent_merge_10x.py"),
 
     ]
