@@ -121,14 +121,20 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     try:
         for i in range(len(plan)):
             logger.info(f"Step: test generation start for agent {i + 1}/{len(plan)}")
-            original_tests, test_input_tokens, test_output_tokens = generate_tests(
-                problem_name,
-                plan[i],
-                test_generator_prompt,
-                test_model_name,
-                logger=logger,
-                agent_index=i + 1,
-            )
+            try:
+                original_tests, test_input_tokens, test_output_tokens = generate_tests(
+                    problem_name,
+                    plan[i],
+                    test_generator_prompt,
+                    test_model_name,
+                    logger=logger,
+                    agent_index=i + 1,
+                )
+            except Exception as e:
+                logger.error(f"Error in test generation for agent {i + 1}: {e}")
+                original_tests = ""
+                test_input_tokens = 0
+                test_output_tokens = 0
             generated_tests.append(original_tests)
             _write_merge_debug_file(
                 debug_mode,
