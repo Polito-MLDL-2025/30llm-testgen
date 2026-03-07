@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.utils.get_parser import config_run_agent_parser, build_argv_agent
+from scripts.utils.process_cleanup import kill_descendant_processes_sigkill
 from scripts.utils.run_cache import build_cache_path, load_run_cache, save_run_cache
 from scripts.utils.summary_parser import (
     infer_tasks_evaluated,
@@ -523,4 +524,9 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Run interrupted by user!", flush=True)
+        kill_descendant_processes_sigkill()
+        raise SystemExit(130)

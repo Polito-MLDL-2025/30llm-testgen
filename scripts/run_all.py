@@ -23,6 +23,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.utils.get_parser import config_run_agent_parser
+from scripts.utils.process_cleanup import kill_descendant_processes_sigkill
 
 
 def print_banner(title: str, char: str = "=") -> None:
@@ -283,6 +284,7 @@ Example usage:
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Run interrupted by user!")
+        kill_descendant_processes_sigkill()
         overall_duration = datetime.now() - overall_start
         print(f"Total duration before interruption: {overall_duration}")
         return 130  # Standard exit code for SIGINT
