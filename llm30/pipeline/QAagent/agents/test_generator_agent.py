@@ -32,3 +32,4 @@ def generate_test_code(problem, problem_id, prompt_path, model, logger):
             time.sleep(10)
             completion = ""
             logger.info(f"Error: {e}")
+            return "", 0, 0, messages

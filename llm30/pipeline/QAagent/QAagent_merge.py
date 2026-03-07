@@ -140,7 +140,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
             num_output_tokens += test_output_tokens
             logger.info(f"Step: test generation complete for agent {i + 1}/{len(plan)}")
     except Exception:
-        return 0, 0, 0, 0, 0
+        return None
 
     # Merge plans and tests according to the specified strategy
     logger.info(

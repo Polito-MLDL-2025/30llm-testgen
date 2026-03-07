@@ -138,7 +138,7 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         num_input_tokens += test_input_tokens
         num_output_tokens += test_output_tokens
     except Exception:
-        return 0, 0, 0, 0, 0
+        return None
 
     filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
         canonical_solution=(

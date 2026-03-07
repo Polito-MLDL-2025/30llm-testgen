@@ -62,7 +62,7 @@ def singleAgent(problem_name, dataset, model_name, code_architect_prompt, test_g
                     f'Tokens - Input: {num_input_tokens}, Output: {num_output_tokens}')
     except Exception as e:
         logger.error(f'Failed to generate tests for problem {problem_id}: {e}')
-        return 0, 0, 0, 0, 0
+        return None
 
     # Log generated tests
     write_tests_single_agent(log_folder, problem_id, generated_tests)
