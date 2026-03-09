@@ -4,13 +4,14 @@ import concurrent.futures
 
 from llm30.pipeline.QAagent.utils.filter_timeout_exe import filter_timeout_exe_test
 from llm30.pipeline.QAagent.utils.logging import write_timeout_tests_qa
+from llm30.pipeline.QAagent.utils.utils import parse_args
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
     # Allow running this file directly from any working directory.
     sys.path.insert(0, PROJECT_ROOT)
 
-from llm30.pipeline.SingleAgent.utils.utils import read_problems, add_canonical_solution, parse_args, update_total_stats
+from llm30.pipeline.SingleAgent.utils.utils import read_problems, add_canonical_solution, update_total_stats
 from llm30.pipeline.SingleAgent.utils.logging import (
     write_tests_single_agent, create_log_folder, setup_logger,
     log_results, write_summary, write_details, sanitize_problem_id,

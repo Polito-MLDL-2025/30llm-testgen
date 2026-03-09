@@ -23,51 +23,6 @@ def add_canonical_solution(problem_name):
 """
 
 
-def parse_args(argv=None):
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Single Agent Test Case Generation - Specify dataset and model.")
-
-    parser.add_argument(
-        "--dataset",
-        choices=["humaneval", "mbpp"],
-        default="humaneval",
-        help="Choose the dataset to use (humaneval or mbpp)."
-    )
-
-    parser.add_argument(
-        "--model",
-        default="meta/llama3-8b-instruct",
-        help="Specify the model to use."
-    )
-
-    parser.add_argument(
-        "--max-tasks",
-        type=int,
-        default=None,
-        help="Maximum number of tasks to process (default: all)."
-    )
-
-    parser.add_argument(
-        "--max-workers",
-        type=int,
-        default=4,
-        help="Number of worker threads to use (default: 4)."
-    )
-
-    parser.add_argument(
-        "--generator-prompt",
-        choices=["default", "original", "zero_shot"],
-        default="default",
-        help="Choose the generator prompt to use (default, original, or zero_shot)."
-    )
-    parser.add_argument(
-        "--dataset-path",
-        default=None,
-        help="Path to the dataset file (e.g., humaneval.jsonl or mbpp.jsonl). if not specified, will use the default path for the chosen dataset."
-    )
-
-    return parser.parse_args(argv)
-
 
 def update_total_stats(result, total_stats):
     """Update total statistics with results from a single problem."""

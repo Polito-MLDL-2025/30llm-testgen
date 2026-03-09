@@ -187,10 +187,10 @@ export OPENAI_API_MODEL="meta/llama3-8b-instruct"
 ```
 
 Model selection priority:
-- Plan model: `QAAGENT_PLAN_MODEL` -> `QAAGENT_MODEL` -> `OPENAI_API_MODEL` -> built-in default (`meta/llama3-8b-instruct`)
-- Test model: `QAAGENT_TEST_MODEL` -> `QAAGENT_MODEL` -> `OPENAI_API_MODEL` -> CLI `--model`
-- Judge model (competitive): `QAAGENT_JUDGE_MODEL` -> `QAAGENT_MODEL` -> `OPENAI_API_MODEL` -> resolved test model
-- Merge model (merge pipeline): `QAAGENT_MERGE_MODEL` -> `QAAGENT_MODEL` -> `OPENAI_API_MODEL` -> resolved test model
+- Plan model: CLI `--qaagent-plan-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_PLAN_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL` -> built-in default (`meta/llama3-8b-instruct`)
+- Test model: CLI `--qaagent-test-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_TEST_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL`
+- Judge model (competitive): CLI `--qaagent-judge-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_JUDGE_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL` -> resolved test model
+- Merge model (merge pipeline): CLI `--qaagent-merge-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_MERGE_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL` -> resolved test model
 
 ### 2) Run scripts
 All experiment runners live in `scripts/`.
