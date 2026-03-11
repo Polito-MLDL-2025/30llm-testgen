@@ -606,6 +606,14 @@ def format_markdown_number(value: float | int | None) -> str:
     return f"{float(value):.2f}"
 
 
+def summary_sort_key(summary: dict[str, object]) -> tuple[str, str, str, str]:
+    prompt = str(summary.get("prompt_type") or "")
+    agent = str(summary.get("agent_type") or "")
+    strategy = str(summary.get("strategy_type") or "")
+    pipeline = str(summary.get("pipeline") or "")
+    return (prompt, agent, strategy, pipeline)
+
+
 def write_summary_markdown(
     output_path: Path,
     summaries: list[dict[str, object]],
@@ -813,6 +821,8 @@ def main(argv=None) -> int:
     for csv_path in csv_files:
         run_dirs = read_run_dirs(csv_path, logs_root) if logs_root is not None else None
         summaries.append(summarize_counts(csv_path, run_dirs, difficulty_mapping))
+
+    summaries.sort(key=summary_sort_key)
 
     for summary in summaries:
         print_summary(summary)
