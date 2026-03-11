@@ -59,6 +59,12 @@ CSV_NAME_DIFFICULTY_SUFFIXES = (
     "hard_advanced",
     "easy_basic",
 )
+DIFFICULTY_SUFFIX_BY_NAME = {
+    "Easy / Basic": "easy_basic",
+    "Medium / Intermediate": "medium_intermediate",
+    "Medium-Hard / Complex": "medium-hard_complex",
+    "Hard / Advanced": "hard_advanced",
+}
 
 
 def parse_args(argv=None):
@@ -279,6 +285,67 @@ def summarize_metric_stats(csv_path: Path) -> dict[str, float | None]:
     }
 
 
+def empty_metric_stats() -> dict[str, float | None]:
+    return {
+        "accuracy": None,
+        "line_coverage": None,
+        "coverage_score": None,
+    }
+
+
+def summarize_difficulty_token_stats(csv_path: Path) -> dict[str, float | int | None]:
+    token_stats = summarize_token_stats(csv_path)
+    return {
+        "total_input_tokens": token_stats["total_input_tokens"],
+        "total_output_tokens": token_stats["total_output_tokens"],
+        "total_tokens": token_stats["total_tokens"],
+        "avg_input_tokens_per_task": token_stats["avg_input_tokens_per_task"],
+        "avg_output_tokens_per_task": token_stats["avg_output_tokens_per_task"],
+        "avg_total_tokens_per_task": token_stats["avg_total_tokens_per_task"],
+    }
+
+
+def empty_difficulty_token_stats() -> dict[str, float | int | None]:
+    return {
+        "total_input_tokens": None,
+        "total_output_tokens": None,
+        "total_tokens": None,
+        "avg_input_tokens_per_task": None,
+        "avg_output_tokens_per_task": None,
+        "avg_total_tokens_per_task": None,
+    }
+
+
+def init_difficulty_summary() -> dict[str, object]:
+    return {
+        "tasks": None,
+        "total_testcases": None,
+        "avg_testcases": None,
+        "metric_stats": empty_metric_stats(),
+        "token_stats": empty_difficulty_token_stats(),
+    }
+
+
+def load_difficulty_metrics(csv_path: Path) -> dict[str, dict[str, object]]:
+    by_difficulty: dict[str, dict[str, object]] = {}
+
+    for difficulty, suffix in DIFFICULTY_SUFFIX_BY_NAME.items():
+        difficulty_csv_path = csv_path.with_name(f"{csv_path.stem}_{suffix}.csv")
+        if not difficulty_csv_path.exists():
+            continue
+
+        _, _, aggregate_row = load_csv_rows(difficulty_csv_path)
+        metric_stats = summarize_metric_stats(difficulty_csv_path)
+        token_stats = summarize_difficulty_token_stats(difficulty_csv_path)
+        difficulty_summary = init_difficulty_summary()
+        difficulty_summary["tasks"] = parse_int(aggregate_row.get("tasks_evaluated")) if aggregate_row else None
+        difficulty_summary["metric_stats"] = metric_stats
+        difficulty_summary["token_stats"] = token_stats
+        by_difficulty[difficulty] = difficulty_summary
+
+    return by_difficulty
+
+
 def summarize_token_stats(csv_path: Path, fallback_task_instances: int = 0) -> dict[str, float | int | None]:
     _, run_rows, aggregate_row = load_csv_rows(csv_path)
 
@@ -431,7 +498,7 @@ def summarize_counts(
     task_instances: int | None = None
     total_testcases: int | None = None
     avg_testcases: float | None = None
-    by_difficulty: dict[str, dict[str, float | int]] = {}
+    by_difficulty: dict[str, dict[str, object]] = load_difficulty_metrics(csv_path)
 
     if run_dirs is not None and difficulty_mapping is not None:
         difficulty_stats = init_bucket_stats()
@@ -458,11 +525,10 @@ def summarize_counts(
             if tasks == 0:
                 continue
             total = int(stats["total_testcases"])
-            by_difficulty[difficulty] = {
-                "tasks": tasks,
-                "total_testcases": total,
-                "avg_testcases": total / tasks,
-            }
+            difficulty_summary = by_difficulty.setdefault(difficulty, init_difficulty_summary())
+            difficulty_summary["tasks"] = tasks
+            difficulty_summary["total_testcases"] = total
+            difficulty_summary["avg_testcases"] = total / tasks
 
         avg_testcases = (total_testcases / task_instances) if task_instances else None
 
@@ -618,20 +684,26 @@ def write_summary_markdown(
         else:
             lines.extend(
                 [
-                    "| Difficulty | Tasks | Total Testcases | Avg Testcases/Task |",
-                    "| --- | ---: | ---: | ---: |",
+                    "| Difficulty | Tasks | Total Testcases | Avg Testcases/Task | Accuracy | Line Coverage | Coverage Score | Avg Tokens/Task |",
+                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
                 ]
             )
             for difficulty in DIFFICULTIES + ["Unknown"]:
                 stats = by_difficulty.get(difficulty)
                 if not stats:
                     continue
+                metric_stats = stats.get("metric_stats", {})
+                difficulty_token_stats = stats.get("token_stats", {})
                 lines.append(
                     "| "
                     f"{difficulty} | "
-                    f"{stats['tasks']} | "
-                    f"{stats['total_testcases']} | "
-                    f"{format_markdown_number(float(stats['avg_testcases']))} |"
+                    f"{format_markdown_number(stats.get('tasks'))} | "
+                    f"{format_markdown_number(stats.get('total_testcases'))} | "
+                    f"{format_markdown_number(stats.get('avg_testcases'))} | "
+                    f"{format_markdown_number(metric_stats.get('accuracy'))} | "
+                    f"{format_markdown_number(metric_stats.get('line_coverage'))} | "
+                    f"{format_markdown_number(metric_stats.get('coverage_score'))} | "
+                    f"{format_markdown_number(difficulty_token_stats.get('avg_total_tokens_per_task'))} |"
                 )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -687,11 +759,17 @@ def print_summary(summary: dict[str, object]) -> None:
         stats = by_difficulty.get(difficulty)
         if not stats:
             continue
+        metric_stats = stats.get("metric_stats", {})
+        difficulty_token_stats = stats.get("token_stats", {})
         print(
             f"    {difficulty}: "
-            f"tasks={stats['tasks']}, "
-            f"total_testcases={stats['total_testcases']}, "
-            f"avg_testcases={float(stats['avg_testcases']):.2f}"
+            f"tasks={format_markdown_number(stats.get('tasks'))}, "
+            f"total_testcases={format_markdown_number(stats.get('total_testcases'))}, "
+            f"avg_testcases={format_markdown_number(stats.get('avg_testcases'))}, "
+            f"accuracy={format_markdown_number(metric_stats.get('accuracy'))}, "
+            f"line_coverage={format_markdown_number(metric_stats.get('line_coverage'))}, "
+            f"coverage_score={format_markdown_number(metric_stats.get('coverage_score'))}, "
+            f"avg_tokens_per_task={format_markdown_number(difficulty_token_stats.get('avg_total_tokens_per_task'))}"
         )
     print()
 
