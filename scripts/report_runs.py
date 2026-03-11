@@ -26,8 +26,9 @@ DEFAULT_DATASET_PATH = REPO_ROOT / "llm30" / "pipeline" / "datasets" / "humaneva
 CSV_NAME_AGENT_ALIASES = (
     ("qaagent_competitive", "qaagent_competitive"),
     ("qaagen_competitive", "qaagent_competitive"),
-    ("qaagent_merge", "merge"),
-    ("qaagen_merge", "merge"),
+    ("qaagent_merge", "qaagent_merge"),
+    ("qaagen_merge", "qaagent_merge"),
+    ("merge", "qaagent_merge"),
     ("singleagent", "singleagent"),
     ("qaagent", "qaagent"),
     ("qaagen", "qaagent"),
@@ -153,32 +154,49 @@ def extract_csv_name_metadata(csv_path: Path) -> dict[str, str]:
         stem,
         CSV_NAME_DIFFICULTY_SUFFIXES,
     )
-    stem_without_prompt, prompt_type = strip_known_suffix(
+    stem_without_prompt, prompt_suffix = strip_known_suffix(
         stem_without_difficulty,
         CSV_NAME_PROMPT_SUFFIXES,
     )
 
     agent_type = "unknown"
     for alias, normalized_agent in CSV_NAME_AGENT_ALIASES:
-        if f"_{alias}_" in stem_without_prompt:
+        if re.search(rf"(?:^|_){re.escape(alias)}(?:_|$)", stem_without_prompt):
             agent_type = normalized_agent
             break
 
     generator_prompt = ""
     strategy_type = ""
-    if prompt_type in {"default", "original", "zero_shot"}:
-        generator_prompt = prompt_type
-    elif prompt_type:
-        prefix, separator, suffix = prompt_type.partition("_")
+    prompt_type = ""
+
+    if prompt_suffix == "zero_shot":
+        generator_prompt = "zero_shot"
+        prompt_type = "zero_shot"
+    elif prompt_suffix in {"accuracy", "selector", "scorer", "concat", "llm", "llm_multi_steps"}:
+        strategy_type = prompt_suffix
+        prompt_match = re.search(r"_(default|original)$", stem_without_prompt)
+        if prompt_match:
+            generator_prompt = prompt_match.group(1)
+            prompt_type = generator_prompt
+        elif prompt_suffix in {"default", "original"}:
+            generator_prompt = prompt_suffix
+            prompt_type = prompt_suffix
+    elif prompt_suffix in {"default", "original"}:
+        generator_prompt = prompt_suffix
+        prompt_type = prompt_suffix
+    elif prompt_suffix:
+        prefix, separator, suffix = prompt_suffix.partition("_")
         if prefix in {"default", "original"} and separator and suffix:
             generator_prompt = prefix
+            prompt_type = prefix
             strategy_type = suffix
         else:
-            strategy_type = prompt_type
+            strategy_type = prompt_suffix
+            prompt_type = prompt_suffix
 
     return {
         "agent_type": agent_type,
-        "prompt_type": prompt_type or "",
+        "prompt_type": prompt_type,
         "generator_prompt": generator_prompt,
         "strategy_type": strategy_type,
         "difficulty_scope": difficulty_scope or "",
