@@ -281,6 +281,7 @@ def summarize_metric_stats(csv_path: Path) -> dict[str, float | None]:
     return {
         "accuracy": resolve_metric(("accuracy",)),
         "line_coverage": resolve_metric(("line_coverage", "coverage")),
+        "branch_coverage": resolve_metric(("branch_coverage",)),
         "coverage_score": resolve_metric(("coverage",)),
     }
 
@@ -289,6 +290,7 @@ def empty_metric_stats() -> dict[str, float | None]:
     return {
         "accuracy": None,
         "line_coverage": None,
+        "branch_coverage": None,
         "coverage_score": None,
     }
 
@@ -605,8 +607,8 @@ def write_summary_markdown(
         "",
         "## Overview",
         "",
-        "| Pipeline | Agent | Prompt | Strategy | Runs | Tasks | Total Testcases | Avg Testcases/Task | Accuracy | Line Coverage | Coverage Score | Avg Tokens/Run | Avg Tokens/Task |",
-        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Pipeline | Agent | Prompt | Strategy | Runs | Tasks | Total Testcases | Avg Testcases/Task | Accuracy | Line Coverage | Branch Coverage | Coverage Score | Avg Tokens/Run | Avg Tokens/Task |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
 
     for summary in summaries:
@@ -624,6 +626,7 @@ def write_summary_markdown(
             f"{format_markdown_number(summary['avg_testcases'])} | "
             f"{format_markdown_number(metric_stats['accuracy'])} | "
             f"{format_markdown_number(metric_stats['line_coverage'])} | "
+            f"{format_markdown_number(metric_stats['branch_coverage'])} | "
             f"{format_markdown_number(metric_stats['coverage_score'])} | "
             f"{format_markdown_number(float(token_stats['avg_total_tokens_per_run']))} | "
             f"{format_markdown_number(token_stats['avg_total_tokens_per_task'])} |"
@@ -656,6 +659,7 @@ def write_summary_markdown(
                     "- Avg metrics:"
                     f" accuracy={format_markdown_number(metric_stats['accuracy'])},"
                     f" line_coverage={format_markdown_number(metric_stats['line_coverage'])},"
+                    f" branch_coverage={format_markdown_number(metric_stats['branch_coverage'])},"
                     f" coverage_score={format_markdown_number(metric_stats['coverage_score'])}"
                 ),
                 (
@@ -684,8 +688,8 @@ def write_summary_markdown(
         else:
             lines.extend(
                 [
-                    "| Difficulty | Tasks | Total Testcases | Avg Testcases/Task | Accuracy | Line Coverage | Coverage Score | Avg Tokens/Task |",
-                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                    "| Difficulty | Tasks | Total Testcases | Avg Testcases/Task | Accuracy | Line Coverage | Branch Coverage | Coverage Score | Avg Tokens/Task |",
+                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
                 ]
             )
             for difficulty in DIFFICULTIES + ["Unknown"]:
@@ -702,6 +706,7 @@ def write_summary_markdown(
                     f"{format_markdown_number(stats.get('avg_testcases'))} | "
                     f"{format_markdown_number(metric_stats.get('accuracy'))} | "
                     f"{format_markdown_number(metric_stats.get('line_coverage'))} | "
+                    f"{format_markdown_number(metric_stats.get('branch_coverage'))} | "
                     f"{format_markdown_number(metric_stats.get('coverage_score'))} | "
                     f"{format_markdown_number(difficulty_token_stats.get('avg_total_tokens_per_task'))} |"
                 )
@@ -737,6 +742,7 @@ def print_summary(summary: dict[str, object]) -> None:
         "  Avg metrics: "
         f"accuracy={format_markdown_number(metric_stats['accuracy'])}, "
         f"line_coverage={format_markdown_number(metric_stats['line_coverage'])}, "
+        f"branch_coverage={format_markdown_number(metric_stats['branch_coverage'])}, "
         f"coverage_score={format_markdown_number(metric_stats['coverage_score'])}"
     )
     token_stats = summary["token_stats"]
@@ -768,6 +774,7 @@ def print_summary(summary: dict[str, object]) -> None:
             f"avg_testcases={format_markdown_number(stats.get('avg_testcases'))}, "
             f"accuracy={format_markdown_number(metric_stats.get('accuracy'))}, "
             f"line_coverage={format_markdown_number(metric_stats.get('line_coverage'))}, "
+            f"branch_coverage={format_markdown_number(metric_stats.get('branch_coverage'))}, "
             f"coverage_score={format_markdown_number(metric_stats.get('coverage_score'))}, "
             f"avg_tokens_per_task={format_markdown_number(difficulty_token_stats.get('avg_total_tokens_per_task'))}"
         )
