@@ -11,6 +11,7 @@ This script orchestrates running all the 10x experiment scripts in sequence:
 Each script runs multiple configurations with multiple runs per configuration.
 """
 import argparse
+import csv
 import importlib.util
 import sys
 from datetime import datetime
@@ -22,6 +23,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.utils.get_parser import config_run_agent_parser
+from scripts.utils.process_cleanup import kill_descendant_processes_sigkill
 
 
 def print_banner(title: str, char: str = "=") -> None:
@@ -29,6 +31,55 @@ def print_banner(title: str, char: str = "=") -> None:
     print(f"\n{char * 80}")
     print(f"{title:^80}")
     print(f"{char * 80}\n")
+
+
+def list_csv_files(output_dir: Path) -> set[Path]:
+    if not output_dir.exists():
+        return set()
+    return {path.resolve() for path in output_dir.glob("*.csv") if path.is_file()}
+
+
+def safe_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def print_token_avg_per_result(csv_path: Path) -> None:
+    with csv_path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+
+    if not rows:
+        return
+
+    printed_any = False
+    for row in rows:
+        input_tokens = safe_float(row.get("input_tokens"))
+        output_tokens = safe_float(row.get("output_tokens"))
+        tasks_evaluated = safe_float(row.get("tasks_evaluated"))
+        avg_tokens_per_task = safe_float(row.get("avg_tokens_per_task"))
+        run_label = row.get("run", "?")
+
+        if input_tokens is None or output_tokens is None:
+            continue
+
+        if avg_tokens_per_task is None:
+            if tasks_evaluated is None or tasks_evaluated <= 0:
+                continue
+            avg_tokens_per_task = (input_tokens + output_tokens) / tasks_evaluated
+
+        print(f"    {csv_path.name} | run={run_label}: AvgTok/Task={avg_tokens_per_task:.2f}")
+        printed_any = True
+
+    if printed_any:
+        print()
 
 
 def run_script(
@@ -60,6 +111,16 @@ def run_script(
     ]
     if args.dataset_path:
         argv.extend(["--dataset-path", str(args.dataset_path)])
+    if args.qaagent_model:
+        argv.extend(["--qaagent-model", args.qaagent_model])
+    if args.qaagent_plan_model:
+        argv.extend(["--qaagent-plan-model", args.qaagent_plan_model])
+    if args.qaagent_test_model:
+        argv.extend(["--qaagent-test-model", args.qaagent_test_model])
+    if args.qaagent_judge_model:
+        argv.extend(["--qaagent-judge-model", args.qaagent_judge_model])
+    if args.qaagent_merge_model:
+        argv.extend(["--qaagent-merge-model", args.qaagent_merge_model])
 
     if args.predefine_name:
         # Add timestamp prefix to distinguish between different run_all executions
@@ -72,6 +133,8 @@ def run_script(
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     start_time = datetime.now()
+    output_dir = Path(args.output_dir)
+    csv_before = list_csv_files(output_dir)
 
     try:
         module_name = f"_run_{script_path.stem}"
@@ -88,6 +151,15 @@ def run_script(
         print_banner(f"✅ {script_name} completed successfully!", "-")
         print(f"Duration: {duration}")
         print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        csv_after = list_csv_files(output_dir)
+        new_csv_files = sorted(csv_after - csv_before)
+        if new_csv_files:
+            print("  AvgTok/Task per result:")
+            for csv_file in new_csv_files:
+                try:
+                    print_token_avg_per_result(csv_file)
+                except Exception as e:
+                    print(f"    Failed to parse {csv_file.name}: {e}")
         return True
 
     except Exception as e:
@@ -152,10 +224,11 @@ Example usage:
 
     # Define all scripts to run
     all_scripts = [
+        ("singleagent", "run_singleagent_10x.py"),
         ("qaagent", "run_qaagent_10x.py"),
         ("competitive", "run_qaagent_competitive_10x.py"),
         ("merge", "run_qaagent_merge_10x.py"),
-        ("singleagent", "run_singleagent_10x.py"),
+
     ]
 
     # Filter out skipped scripts
@@ -174,6 +247,16 @@ Example usage:
     print(f"Runs per config: {args.runs}")
     print(f"Dataset:       {args.dataset}")
     print(f"Model:         {args.model}")
+    if args.qaagent_model:
+        print(f"QAAGENT_MODEL: {args.qaagent_model}")
+    if args.qaagent_plan_model:
+        print(f"QAAGENT_PLAN_MODEL: {args.qaagent_plan_model}")
+    if args.qaagent_test_model:
+        print(f"QAAGENT_TEST_MODEL: {args.qaagent_test_model}")
+    if args.qaagent_judge_model:
+        print(f"QAAGENT_JUDGE_MODEL: {args.qaagent_judge_model}")
+    if args.qaagent_merge_model:
+        print(f"QAAGENT_MERGE_MODEL: {args.qaagent_merge_model}")
     print(f"Max tasks:     {args.max_tasks}")
     print(f"Max workers:   {args.max_workers}")
     print(f"Output dir:    {args.output_dir}")
@@ -201,6 +284,7 @@ Example usage:
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Run interrupted by user!")
+        kill_descendant_processes_sigkill()
         overall_duration = datetime.now() - overall_start
         print(f"Total duration before interruption: {overall_duration}")
         return 130  # Standard exit code for SIGINT

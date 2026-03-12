@@ -255,12 +255,20 @@ def call_and_handle(messages, model, temperature=0, top_p=1.0, timeout=180):
                 )
             break
         except Exception as exc:
-            if _is_timeout_error(exc) and attempt < max_attempts:
-                logger.warning(
-                    "Request timed out (attempt %s/%s). Retrying in 60 seconds.",
-                    attempt,
-                    max_attempts,
-                )
+            if attempt < max_attempts:
+                if _is_timeout_error(exc):
+                    logger.warning(
+                        "Request timed out (attempt %s/%s). Retrying in 60 seconds.",
+                        attempt,
+                        max_attempts,
+                    )
+                else:
+                    logger.warning(
+                        "Request failed unexpectedly (attempt %s/%s): %s. Retrying in 60 seconds.",
+                        attempt,
+                        max_attempts,
+                        exc,
+                    )
                 time.sleep(60)
                 continue
             raise

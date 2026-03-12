@@ -170,6 +170,28 @@ export OPENAI_API_KEY="sk-your-key"
 export OPENAI_URL_BASE="https://your-openai-compatible-base-url"
 ```
 
+Optional model override env vars for QAagent pipelines (`QAagent.py`, `QAagent_merge.py`, `QAagent_competitive.py`):
+
+```bash
+# Shared override for all QAagent stages
+export QAAGENT_MODEL="meta/llama3-8b-instruct"
+
+# Stage-specific overrides
+export QAAGENT_PLAN_MODEL="meta/llama3-8b-instruct"
+export QAAGENT_TEST_MODEL="meta/llama3-8b-instruct"
+export QAAGENT_JUDGE_MODEL="meta/llama3-8b-instruct"
+export QAAGENT_MERGE_MODEL="meta/llama3-8b-instruct"
+
+# Backward-compatible shared fallback
+export OPENAI_API_MODEL="meta/llama3-8b-instruct"
+```
+
+Model selection priority:
+- Plan model: CLI `--qaagent-plan-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_PLAN_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL` -> built-in default (`meta/llama3-8b-instruct`)
+- Test model: CLI `--qaagent-test-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_TEST_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL`
+- Judge model (competitive): CLI `--qaagent-judge-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_JUDGE_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL` -> resolved test model
+- Merge model (merge pipeline): CLI `--qaagent-merge-model` -> CLI `--qaagent-model` -> CLI `--model` -> env `QAAGENT_MERGE_MODEL` -> env `QAAGENT_MODEL` -> env `OPENAI_API_MODEL` -> resolved test model
+
 ### 2) Run scripts
 All experiment runners live in `scripts/`.
 

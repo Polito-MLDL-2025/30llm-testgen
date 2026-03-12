@@ -4,20 +4,24 @@ import concurrent.futures
 
 from llm30.pipeline.QAagent.utils.filter_timeout_exe import filter_timeout_exe_test
 from llm30.pipeline.QAagent.utils.logging import write_timeout_tests_qa
+from llm30.pipeline.QAagent.utils.utils import parse_args
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
     # Allow running this file directly from any working directory.
     sys.path.insert(0, PROJECT_ROOT)
 
-from llm30.pipeline.SingleAgent.utils.utils import read_problems, add_canonical_solution, parse_args, update_total_stats
+from llm30.pipeline.SingleAgent.utils.utils import read_problems, add_canonical_solution, update_total_stats
 from llm30.pipeline.SingleAgent.utils.logging import (
     write_tests_single_agent, create_log_folder, setup_logger,
     log_results, write_summary, write_details, sanitize_problem_id,
     init_difficulty_stats, write_difficulty_summaries,
 )
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
-from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
+from llm30.pipeline.QAagent.utils.coverage import (
+    get_coverage,
+    extract_line_and_branch_coverage_percentages,
+)
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 from scripts.classify_humaneval import get_difficulty_mapping
 
@@ -59,7 +63,7 @@ def singleAgent(problem_name, dataset, model_name, code_architect_prompt, test_g
                     f'Tokens - Input: {num_input_tokens}, Output: {num_output_tokens}')
     except Exception as e:
         logger.error(f'Failed to generate tests for problem {problem_id}: {e}')
-        return 0, 0, 0, 0, 0
+        return None
 
     # Log generated tests
     write_tests_single_agent(log_folder, problem_id, generated_tests)
@@ -99,16 +103,38 @@ def singleAgent(problem_name, dataset, model_name, code_architect_prompt, test_g
         problem_id
     )
 
-    # Extract and log test coverage
+    # Extract and log line + branch coverage.
     # Note: Coverage files are in problem_{problem_id} folder (e.g., problem_HumanEval/0)
     coverage_folder = os.path.join(log_folder, f'problem_{problem_id}')
-    first_five_coverage, total_coverage = extract_coverage_percentages(coverage_folder, problem_name)
+    (
+        first_five_line_coverage,
+        total_line_coverage,
+        first_five_branch_coverage,
+        total_branch_coverage,
+        first_five_coverage,
+        total_coverage,
+    ) = (
+        extract_line_and_branch_coverage_percentages(
+            coverage_folder,
+            entry_point=problem_name.get("entry_point"),
+        )
+    )
 
     # Log results
     log_results(problem_folder, first_five_coverage_report, total_coverage_report, test_results, logger,
                 num_input_tokens, num_output_tokens)
 
-    return first_five_coverage, total_coverage, accuracy, num_input_tokens, num_output_tokens
+    return (
+        first_five_coverage,
+        total_coverage,
+        accuracy,
+        num_input_tokens,
+        num_output_tokens,
+        first_five_branch_coverage,
+        total_branch_coverage,
+        first_five_line_coverage,
+        total_line_coverage,
+    )
 
 
 def process_problem(problem, model, dataset, log_folder, test_generator_prompt, logger, timeout_seconds=700,
@@ -133,14 +159,35 @@ def process_problem(problem, model, dataset, log_folder, test_generator_prompt, 
             metadata=None
         )
         if result is None:
-            return task_id, 0, 0, 0.0, 0.0, 0.0
-        first_five_coverage, total_coverage, accuracy, input_tokens, output_tokens = result
-        return task_id, input_tokens, output_tokens, first_five_coverage, total_coverage, accuracy
+            return task_id, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        (
+            first_five_mix_coverage,
+            total_mix_coverage,
+            accuracy,
+            input_tokens,
+            output_tokens,
+            first_five_branch_coverage,
+            total_branch_coverage,
+            first_five_line_coverage,
+            total_line_coverage,
+        ) = result
+        return (
+            task_id,
+            input_tokens,
+            output_tokens,
+            first_five_mix_coverage,
+            total_mix_coverage,
+            accuracy,
+            first_five_branch_coverage,
+            total_branch_coverage,
+            first_five_line_coverage,
+            total_line_coverage,
+        )
     except Exception as e:
         logger.error(f'Error processing problem {task_id}: {e}')
         with open(os.path.join(log_folder, 'errors.txt'), 'a') as f:
             f.write(f'Error in problem ID {task_id}: {e}\n')
-        return task_id, 0, 0, 0.0, 0.0, 0.0
+        return task_id, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
 def main(argv=None) -> int:
@@ -213,8 +260,12 @@ def main(argv=None) -> int:
     total_stats = {
         'input_tokens': 0,
         'output_tokens': 0,
+        'first_five_line_coverage': 0.0,
+        'line_coverage': 0.0,
         'first_five_coverage': 0.0,
         'coverage': 0.0,
+        'first_five_branch_coverage': 0.0,
+        'branch_coverage': 0.0,
         'accuracy': 0.0,
         'evaluated': 0
     }
@@ -259,7 +310,18 @@ def main(argv=None) -> int:
             try:
                 result = future.result()
                 if result:
-                    task_id, input_tokens, output_tokens, first_five_cov, total_cov, accuracy = result
+                    (
+                        task_id,
+                        input_tokens,
+                        output_tokens,
+                        first_five_cov,
+                        total_cov,
+                        accuracy,
+                        first_five_branch_cov,
+                        total_branch_cov,
+                        first_five_line_cov,
+                        total_line_cov,
+                    ) = result
                     update_total_stats(result, total_stats)
                     
                     # Update per-difficulty stats
@@ -269,8 +331,12 @@ def main(argv=None) -> int:
                             difficulty_stats[difficulty]['evaluated'] += 1
                             difficulty_stats[difficulty]['input_tokens'] += input_tokens
                             difficulty_stats[difficulty]['output_tokens'] += output_tokens
+                            difficulty_stats[difficulty]['first_five_line_coverage'] += first_five_line_cov
+                            difficulty_stats[difficulty]['line_coverage'] += total_line_cov
                             difficulty_stats[difficulty]['first_five_coverage'] += first_five_cov
                             difficulty_stats[difficulty]['coverage'] += total_cov
+                            difficulty_stats[difficulty]['first_five_branch_coverage'] += first_five_branch_cov
+                            difficulty_stats[difficulty]['branch_coverage'] += total_branch_cov
                             difficulty_stats[difficulty]['accuracy'] += accuracy
                     
                     write_summary(log_folder, total_stats)
@@ -279,7 +345,9 @@ def main(argv=None) -> int:
                     # Compact progress output with key metrics
                     print(f"[{completed}/{total_problems}] {task_id:<20} | "
                           f"Accuracy: {accuracy:>5.1f}% | "
-                          f"Coverage: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"LineCov: {first_five_line_cov:>5.1f}%→{total_line_cov:>5.1f}% | "
+                          f"Cov: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"BranchCov: {first_five_branch_cov:>5.1f}%→{total_branch_cov:>5.1f}% | "
                           f"Tokens: {input_tokens}+{output_tokens}")
             except Exception as e:
                 logger.error(f"Error processing problem at index {problem_index}: {e}")
@@ -292,8 +360,12 @@ def main(argv=None) -> int:
     if total_stats['evaluated'] > 0:
         print(f"Problems evaluated: {total_stats['evaluated']}")
         print(f"Average accuracy: {total_stats['accuracy'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five line coverage: {total_stats['first_five_line_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total line coverage: {total_stats['line_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Average first-five coverage: {total_stats['first_five_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Average total coverage: {total_stats['coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five branch coverage: {total_stats['first_five_branch_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total branch coverage: {total_stats['branch_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Total input tokens: {total_stats['input_tokens']}")
         print(f"Total output tokens: {total_stats['output_tokens']}")
     

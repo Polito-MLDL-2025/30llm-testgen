@@ -22,7 +22,11 @@ from llm30.pipeline.QAagent.utils.logging import (
 )
 from llm30.pipeline.QAagent.agents.code_architect_agent import architect_code
 from llm30.pipeline.QAagent.agents.test_generator_agent import generate_test_code
-from llm30.pipeline.QAagent.utils.coverage import get_coverage, extract_coverage_percentages
+from llm30.pipeline.QAagent.utils.model_selection import DEFAULT_PLAN_MODEL, resolve_qaagent_models
+from llm30.pipeline.QAagent.utils.coverage import (
+    get_coverage,
+    extract_line_and_branch_coverage_percentages,
+)
 from llm30.pipeline.QAagent.utils.accuracy import get_accuracy
 from scripts.classify_humaneval import get_difficulty_mapping
 
@@ -54,7 +58,7 @@ def generate_tests(problem_name, plan, test_generator_prompt, model_name, logger
 
 
 def process_problem(problem, model, dataset, log_folder, code_architect_prompt, test_generator_prompt, logger,
-                    timeout_seconds=700, max_attempts=3):
+                    plan_model_name=None, timeout_seconds=700, max_attempts=3):
     try:
         result = qaAgent(
             problem_name=problem,
@@ -64,23 +68,41 @@ def process_problem(problem, model, dataset, log_folder, code_architect_prompt, 
             test_generator_prompt=test_generator_prompt,
             log_folder=log_folder,
             logger=logger,
+            metadata={
+                "plan_model_name": plan_model_name,
+                "test_model_name": model,
+            },
         )
         if result is None:
-            return problem["task_id"], 0, 0, 0.0, 0.0, 0.0
-        curr_first_five_coverage_percentage, curr_total_coverage_percentage, accuracy_percentage, curr_num_input_tokens, curr_num_output_tokens = result
+            return problem["task_id"], 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        (
+            curr_first_five_mix_coverage_percentage,
+            curr_total_mix_coverage_percentage,
+            accuracy_percentage,
+            curr_num_input_tokens,
+            curr_num_output_tokens,
+            curr_first_five_branch_coverage_percentage,
+            curr_total_branch_coverage_percentage,
+            curr_first_five_line_coverage_percentage,
+            curr_total_line_coverage_percentage,
+        ) = result
         return (
             problem["task_id"],
             curr_num_input_tokens,
             curr_num_output_tokens,
-            curr_first_five_coverage_percentage,
-            curr_total_coverage_percentage,
+            curr_first_five_mix_coverage_percentage,
+            curr_total_mix_coverage_percentage,
             accuracy_percentage,
+            curr_first_five_branch_coverage_percentage,
+            curr_total_branch_coverage_percentage,
+            curr_first_five_line_coverage_percentage,
+            curr_total_line_coverage_percentage,
         )
     except Exception as e:
         logger.error(f'Error in problem ID {problem["task_id"]}: {e}')
         with open(os.path.join(log_folder, 'errors.txt'), 'a') as f:
             f.write(f'Error in problem ID {problem["task_id"]}: {e}\n')
-        return problem["task_id"], 0, 0, 0.0, 0.0, 0.0  # Return 0 tokens if there's an error
+        return problem["task_id"], 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  # Return 0 tokens if there's an error
 
 
 def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_generator_prompt, log_folder, logger,
@@ -88,21 +110,35 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
     num_input_tokens = 0
     num_output_tokens = 0
     problem_id = problem_name["task_id"]
-    logger.info(f'Starting QA Agent pipeline for problem ID {problem_id}')
+    plan_model_name = (metadata or {}).get("plan_model_name") or DEFAULT_PLAN_MODEL
+    test_model_name = (metadata or {}).get("test_model_name") or model_name
+    logger.info(
+        f"Starting QA Agent pipeline for problem ID {problem_id} "
+        f"(plan_model={plan_model_name}, test_model={test_model_name})"
+    )
 
     # generate natural language pseudocode from problem["prompt"]
-    plan, plan_input_tokens, plan_output_tokens = generate_plan(problem_name, code_architect_prompt, model_name="qwen/qwen2.5-coder-32b-instruct", logger=logger)
+    plan, plan_input_tokens, plan_output_tokens = generate_plan(
+        problem_name,
+        code_architect_prompt,
+        model_name=plan_model_name,
+        logger=logger,
+    )
     num_input_tokens += plan_input_tokens
     num_output_tokens += plan_output_tokens
 
     try:
-        generated_tests, test_input_tokens, test_output_tokens = generate_tests(problem_name, plan,
-                                                                                test_generator_prompt, model_name, logger=
-                                                                                logger)
+        generated_tests, test_input_tokens, test_output_tokens = generate_tests(
+            problem_name,
+            plan,
+            test_generator_prompt,
+            test_model_name,
+            logger=logger,
+        )
         num_input_tokens += test_input_tokens
         num_output_tokens += test_output_tokens
     except Exception:
-        return 0, 0, 0, 0, 0
+        return None
 
     filtered_tests, timed_out_tests, original_tests = filter_timeout_exe_test(
         canonical_solution=(
@@ -148,21 +184,50 @@ def qaAgent(problem_name, dataset, model_name, code_architect_prompt, test_gener
         problem_id
     )
 
-    # Extract and log test coverage
-    first_five_coverage, total_coverage = extract_coverage_percentages(problem_folder, problem_name)
+    # Extract and log line + branch coverage.
+    (
+        first_five_line_coverage,
+        total_line_coverage,
+        first_five_branch_coverage,
+        total_branch_coverage,
+        first_five_coverage,
+        total_coverage,
+    ) = (
+        extract_line_and_branch_coverage_percentages(
+            problem_folder,
+            entry_point=problem_name.get("entry_point"),
+        )
+    )
 
     # Log results
     log_results(problem_folder, first_five_coverage_report, total_coverage_report, test_results, logger,
                 num_input_tokens, num_output_tokens)
 
-    return first_five_coverage, total_coverage, accuracy, num_input_tokens, num_output_tokens
+    return (
+        first_five_coverage,
+        total_coverage,
+        accuracy,
+        num_input_tokens,
+        num_output_tokens,
+        first_five_branch_coverage,
+        total_branch_coverage,
+        first_five_line_coverage,
+        total_line_coverage,
+    )
 
 
 def main(argv=None) -> int:
     args = parse_args(argv)
 
     # Setup
-    model = args.model
+    stage_models = resolve_qaagent_models(
+        args.model,
+        qaagent_model=args.qaagent_model,
+        qaagent_plan_model=args.qaagent_plan_model,
+        qaagent_test_model=args.qaagent_test_model,
+    )
+    model = stage_models["test_model"]
+    plan_model = stage_models["plan_model"]
     dataset = args.dataset
     log_folder = create_log_folder(dataset=dataset, model=model)
     logger = setup_logger(log_folder)
@@ -171,7 +236,9 @@ def main(argv=None) -> int:
     print(f"\n{'=' * 60}")
     print("QA Agent Test Case Generation Pipeline")
     print(f"{'=' * 60}")
-    print(f"Model: {model}")
+    print(f"Model (CLI --model): {args.model}")
+    print(f"Plan model: {plan_model}")
+    print(f"Test model: {model}")
     print(f"Dataset: {dataset}")
     print(f"Log folder: {log_folder}")
     print(f"Max workers: {args.max_workers}")
@@ -228,8 +295,12 @@ def main(argv=None) -> int:
     total_stats = {
         'input_tokens': 0,
         'output_tokens': 0,
+        'first_five_line_coverage': 0.0,
+        'line_coverage': 0.0,
         'first_five_coverage': 0.0,
         'coverage': 0.0,
+        'first_five_branch_coverage': 0.0,
+        'branch_coverage': 0.0,
         'accuracy': 0.0,
         'evaluated': 0
     }
@@ -262,6 +333,7 @@ def main(argv=None) -> int:
                 code_architect_prompt,
                 test_generator_prompt,
                 logger,
+                plan_model_name=plan_model,
             ): i
             for i in range(start_index, end_index)
         }
@@ -272,7 +344,18 @@ def main(argv=None) -> int:
             try:
                 result = future.result()
                 if result:
-                    task_id, input_tokens, output_tokens, first_five_cov, total_cov, accuracy = result
+                    (
+                        task_id,
+                        input_tokens,
+                        output_tokens,
+                        first_five_cov,
+                        total_cov,
+                        accuracy,
+                        first_five_branch_cov,
+                        total_branch_cov,
+                        first_five_line_cov,
+                        total_line_cov,
+                    ) = result
                     update_total_stats(result, total_stats)
                     
                     # Update per-difficulty stats
@@ -282,15 +365,21 @@ def main(argv=None) -> int:
                             difficulty_stats[difficulty]['evaluated'] += 1
                             difficulty_stats[difficulty]['input_tokens'] += input_tokens
                             difficulty_stats[difficulty]['output_tokens'] += output_tokens
+                            difficulty_stats[difficulty]['first_five_line_coverage'] += first_five_line_cov
+                            difficulty_stats[difficulty]['line_coverage'] += total_line_cov
                             difficulty_stats[difficulty]['first_five_coverage'] += first_five_cov
                             difficulty_stats[difficulty]['coverage'] += total_cov
+                            difficulty_stats[difficulty]['first_five_branch_coverage'] += first_five_branch_cov
+                            difficulty_stats[difficulty]['branch_coverage'] += total_branch_cov
                             difficulty_stats[difficulty]['accuracy'] += accuracy
                     
                     write_summary(log_folder, total_stats)
                     write_details(log_folder, result)
                     print(f"[{completed}/{total_problems}] {task_id:<20} | "
                           f"Accuracy: {accuracy:>5.1f}% | "
-                          f"Coverage: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"LineCov: {first_five_line_cov:>5.1f}%→{total_line_cov:>5.1f}% | "
+                          f"Cov: {first_five_cov:>5.1f}%→{total_cov:>5.1f}% | "
+                          f"BranchCov: {first_five_branch_cov:>5.1f}%→{total_branch_cov:>5.1f}% | "
                           f"Tokens: {input_tokens}+{output_tokens}")
             except Exception as e:
                 logger.error(f"Error processing problem: {e}")
@@ -303,8 +392,12 @@ def main(argv=None) -> int:
     if total_stats['evaluated'] > 0:
         print(f"Problems evaluated: {total_stats['evaluated']}")
         print(f"Average accuracy: {total_stats['accuracy'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five line coverage: {total_stats['first_five_line_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total line coverage: {total_stats['line_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Average first-five coverage: {total_stats['first_five_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Average total coverage: {total_stats['coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average first-five branch coverage: {total_stats['first_five_branch_coverage'] / total_stats['evaluated']:.2f}%")
+        print(f"Average total branch coverage: {total_stats['branch_coverage'] / total_stats['evaluated']:.2f}%")
         print(f"Total input tokens: {total_stats['input_tokens']}")
         print(f"Total output tokens: {total_stats['output_tokens']}")
     

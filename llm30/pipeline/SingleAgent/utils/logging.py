@@ -91,12 +91,24 @@ def log_results(problem_folder, first_five_coverage_report, total_coverage_repor
 def write_summary(log_folder, total_stats):
     """Write summary statistics to file."""
     evaluated = total_stats['evaluated']
+    avg_tokens_per_task = (
+        (total_stats['input_tokens'] + total_stats['output_tokens']) / evaluated
+        if evaluated > 0 else 0.0
+    )
     with open(os.path.join(log_folder, 'summary.txt'), 'w') as summary_file:
         summary_file.write(
+            f"Tasks evaluated: {evaluated}\n"
             f"Accuracy: {total_stats['accuracy'] / evaluated}\n"
+            f"First five line coverage: {total_stats.get('first_five_line_coverage', 0.0) / evaluated}\n"
+            f"Line coverage: {total_stats.get('line_coverage', 0.0) / evaluated}\n"
             f"First five coverage: {total_stats['first_five_coverage'] / evaluated}\n"
             f"Coverage: {total_stats['coverage'] / evaluated}\n"
-            f"Input tokens: {total_stats['input_tokens']}\nOutput tokens: {total_stats['output_tokens']}\n")
+            f"First five branch coverage: {total_stats.get('first_five_branch_coverage', 0.0) / evaluated}\n"
+            f"Branch coverage: {total_stats.get('branch_coverage', 0.0) / evaluated}\n"
+            f"Input tokens: {total_stats['input_tokens']}\n"
+            f"Output tokens: {total_stats['output_tokens']}\n"
+            f"Avg tokens per task: {avg_tokens_per_task}\n"
+        )
 
 
 def init_difficulty_stats():
@@ -106,8 +118,12 @@ def init_difficulty_stats():
         difficulty: {
             'evaluated': 0,
             'accuracy': 0.0,
+            'first_five_line_coverage': 0.0,
+            'line_coverage': 0.0,
             'first_five_coverage': 0.0,
             'coverage': 0.0,
+            'first_five_branch_coverage': 0.0,
+            'branch_coverage': 0.0,
             'input_tokens': 0,
             'output_tokens': 0
         }
@@ -127,14 +143,23 @@ def write_difficulty_summaries(log_folder, difficulty_stats, difficulty_mapping=
         
         safe_filename = difficulty.replace(' / ', '_').replace(' ', '_').lower() + '.txt'
         with open(os.path.join(difficulty_folder, safe_filename), 'w') as f:
+            avg_tokens_per_task = (
+                (stats['input_tokens'] + stats['output_tokens']) / stats['evaluated']
+                if stats['evaluated'] > 0 else 0.0
+            )
             f.write(
                 f"Difficulty: {difficulty}\n"
                 f"Tasks evaluated: {stats['evaluated']}\n"
                 f"Accuracy: {stats['accuracy'] / stats['evaluated']}\n"
+                f"First five line coverage: {stats.get('first_five_line_coverage', 0.0) / stats['evaluated']}\n"
+                f"Line coverage: {stats.get('line_coverage', 0.0) / stats['evaluated']}\n"
                 f"First five coverage: {stats['first_five_coverage'] / stats['evaluated']}\n"
                 f"Coverage: {stats['coverage'] / stats['evaluated']}\n"
+                f"First five branch coverage: {stats.get('first_five_branch_coverage', 0.0) / stats['evaluated']}\n"
+                f"Branch coverage: {stats.get('branch_coverage', 0.0) / stats['evaluated']}\n"
                 f"Input tokens: {stats['input_tokens']}\n"
                 f"Output tokens: {stats['output_tokens']}\n"
+                f"Avg tokens per task: {avg_tokens_per_task}\n"
             )
     
     # Write aggregated summary
@@ -146,8 +171,12 @@ def write_difficulty_summaries(log_folder, difficulty_stats, difficulty_mapping=
                 f"\n{difficulty}:\n"
                 f"  Tasks evaluated: {stats['evaluated']}\n"
                 f"  Accuracy: {stats['accuracy'] / stats['evaluated']:.2f}\n"
+                f"  First five line coverage: {stats.get('first_five_line_coverage', 0.0) / stats['evaluated']:.2f}\n"
+                f"  Line coverage: {stats.get('line_coverage', 0.0) / stats['evaluated']:.2f}\n"
                 f"  First five coverage: {stats['first_five_coverage'] / stats['evaluated']:.2f}\n"
                 f"  Coverage: {stats['coverage'] / stats['evaluated']:.2f}\n"
+                f"  First five branch coverage: {stats.get('first_five_branch_coverage', 0.0) / stats['evaluated']:.2f}\n"
+                f"  Branch coverage: {stats.get('branch_coverage', 0.0) / stats['evaluated']:.2f}\n"
                 f"  Input tokens: {stats['input_tokens']}\n"
                 f"  Output tokens: {stats['output_tokens']}\n"
             )
@@ -167,10 +196,28 @@ def write_difficulty_summaries(log_folder, difficulty_stats, difficulty_mapping=
 
 def write_details(log_folder, result):
     """Write detailed results for each problem to file."""
-    problem_id, cur_num_input_tokens, cur_num_output_tokens, cur_first_five_coverage, cur_total_coverage, cur_accuracy = result
+    (
+        problem_id,
+        cur_num_input_tokens,
+        cur_num_output_tokens,
+        cur_first_five_coverage,
+        cur_total_coverage,
+        cur_accuracy,
+        *extra_metrics,
+    ) = result
+    cur_first_five_branch = extra_metrics[0] if len(extra_metrics) > 0 else 0.0
+    cur_total_branch = extra_metrics[1] if len(extra_metrics) > 1 else 0.0
+    cur_first_five_line = extra_metrics[2] if len(extra_metrics) > 2 else 0.0
+    cur_total_line = extra_metrics[3] if len(extra_metrics) > 3 else 0.0
     with open(os.path.join(log_folder, 'details.txt'), 'a') as details_file:
         details_file.write(
             f"Problem ID: {problem_id}\nAccuracy: {cur_accuracy}\n"
+            f"First five line coverage: {cur_first_five_line}\n"
+            f"Line coverage: {cur_total_line}\n"
             f"First five coverage: {cur_first_five_coverage}\n"
             f"Coverage: {cur_total_coverage}\n"
-            f"Input tokens: {cur_num_input_tokens}\nOutput tokens: {cur_num_output_tokens}\n")
+            f"First five branch coverage: {cur_first_five_branch}\n"
+            f"Branch coverage: {cur_total_branch}\n"
+            f"Input tokens: {cur_num_input_tokens}\n"
+            f"Output tokens: {cur_num_output_tokens}\n"
+        )

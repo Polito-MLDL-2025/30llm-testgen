@@ -40,8 +40,43 @@ def parse_args(argv=None):
 
     parser.add_argument(
         "--model",
-        default="gpt-4o",
+        default="meta/llama3-8b-instruct",
         help="Specify the model to use."
+    )
+    parser.add_argument(
+        "--qaagent-model",
+        "--QAAGENT_MODEL",
+        dest="qaagent_model",
+        default=None,
+        help="Override QAAGENT_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-plan-model",
+        "--QAAGENT_PLAN_MODEL",
+        dest="qaagent_plan_model",
+        default=None,
+        help="Override QAAGENT_PLAN_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-test-model",
+        "--QAAGENT_TEST_MODEL",
+        dest="qaagent_test_model",
+        default=None,
+        help="Override QAAGENT_TEST_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-judge-model",
+        "--QAAGENT_JUDGE_MODEL",
+        dest="qaagent_judge_model",
+        default=None,
+        help="Override QAAGENT_JUDGE_MODEL (higher priority than .env).",
+    )
+    parser.add_argument(
+        "--qaagent-merge-model",
+        "--QAAGENT_MERGE_MODEL",
+        dest="qaagent_merge_model",
+        default=None,
+        help="Override QAAGENT_MERGE_MODEL (higher priority than .env).",
     )
     parser.add_argument(
         "--max-tasks",
@@ -105,10 +140,30 @@ def parse_args(argv=None):
 
 
 def update_total_stats(result, total_stats):
-    problem_id, cur_num_input_tokens, cur_num_output_tokens, cur_first_five_coverage, cur_total_coverage, cur_accuracy = result
+    (
+        problem_id,
+        cur_num_input_tokens,
+        cur_num_output_tokens,
+        cur_first_five_coverage,
+        cur_total_coverage,
+        cur_accuracy,
+        *extra_metrics,
+    ) = result
+    cur_first_five_branch = extra_metrics[0] if len(extra_metrics) > 0 else 0.0
+    cur_total_branch = extra_metrics[1] if len(extra_metrics) > 1 else 0.0
+    cur_first_five_line = extra_metrics[2] if len(extra_metrics) > 2 else cur_first_five_coverage
+    cur_total_line = extra_metrics[3] if len(extra_metrics) > 3 else cur_total_coverage
     total_stats['input_tokens'] += cur_num_input_tokens
     total_stats['output_tokens'] += cur_num_output_tokens
     total_stats['first_five_coverage'] += cur_first_five_coverage
     total_stats['coverage'] += cur_total_coverage
+    if 'first_five_line_coverage' in total_stats:
+        total_stats['first_five_line_coverage'] += cur_first_five_line
+    if 'line_coverage' in total_stats:
+        total_stats['line_coverage'] += cur_total_line
+    if 'first_five_branch_coverage' in total_stats:
+        total_stats['first_five_branch_coverage'] += cur_first_five_branch
+    if 'branch_coverage' in total_stats:
+        total_stats['branch_coverage'] += cur_total_branch
     total_stats['accuracy'] += cur_accuracy
     total_stats['evaluated'] += 1

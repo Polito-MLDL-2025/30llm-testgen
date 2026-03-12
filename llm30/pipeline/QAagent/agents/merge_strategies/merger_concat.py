@@ -1,5 +1,7 @@
 import ast
 
+from llm30.pipeline.QAagent.utils.extract_assert_block import extract_assert_blocks
+
 
 def merge_plans_concat(plans):
     """
@@ -86,18 +88,14 @@ def merge_tests_concat_enhanced(test_sets, problem_name, logger):
     syntax_errors = 0
 
     for tests in valid_test_sets:
-        for line in tests.split('\n'):
-            line = line.strip()
-            if not line or not line.startswith('assert'):
-                continue
-
+        for test in extract_assert_blocks(tests):
             try:
-                # Attempt to compile the line to check for syntax errors
-                compile(line, '<string>', 'exec')
-                valid_tests.append(line)
+                # Attempt to compile the assert block to check for syntax errors
+                compile(test, '<string>', 'exec')
+                valid_tests.append(test)
             except SyntaxError:
                 syntax_errors += 1
-                logger.debug(f"Filtered out test with syntax error: {line}")
+                logger.debug(f"Filtered out test with syntax error: {test}")
 
     if syntax_errors > 0:
         logger.info(f"Filtered out {syntax_errors} tests with syntax errors")
