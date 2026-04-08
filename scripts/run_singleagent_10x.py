@@ -225,8 +225,8 @@ def main(argv=None) -> int:
         "dataset_path": args.dataset_path,
         "predefine_name": args.predefine_name,
     }
-    prompts = ["default","original","zero_shot"]
-    # prompts = ["zero_shot"]
+    #prompts = ["default","original","zero_shot"]
+    prompts = ["zero_shot"]
     for generator_prompt in prompts:
         argv = build_argv_agent(args, generator_prompt)
         cache_path = build_cache_path(
