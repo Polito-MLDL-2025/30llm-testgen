@@ -141,15 +141,15 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 #### HumanEval - Full Dataset (164 Problems) (10 Runs)
 | Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
 |:---------------------------------------| :------------------------ |-----------------------:|---------:|---------------:|
-| Single Agent                           | Zero Shot (Baseline)      |                  62.17 |    68.00 |       2,149.84 |
-| Single Agent                           | Standard Few-Shot         |                  91.11 |    95.94 |       2,400.29 |
+| Single Agent                           | Zero Shot (Baseline)      |                  62.17 |    68.23 |       2,149.84 |
+| Single Agent                           | Standard Few-Shot         |                  91.11 |    96.15 |       2,400.29 |
 | QA Agent                               | Standard Few-Shot         |                  88.65 |    96.12 |       3,521.80 |
 | Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot         |                  93.02 |    97.83 |      17,584.13 |
 | Multi-Agent Competitive (LLM selector) | Standard Few-Shot         |                  92.51 |    98.39 |      16,968.47 |
 | Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  91.50 |    96.99 |      11,672.22 |
 | Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  89.78 |    96.29 |      11,609.57 |
 | Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  91.96 |    97.65 |      20,432.18 |
-| Single Agent                           | Rule-Augmented Few-Shot   |                  96.98 |    99.06 |       3,843.29 |
+| Single Agent                           | Rule-Augmented Few-Shot   |                  96.98 |    99.30 |       3,843.29 |
 | QA Agent                               | Rule-Augmented Few-Shot   |                  96.42 |    98.98 |       5,140.45 |
 | Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  96.89 |    99.25 |      21,635.40 |
 | Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  96.70 |    99.37 |      21,154.44 |
