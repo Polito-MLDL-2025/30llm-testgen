@@ -114,11 +114,11 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 | Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  90.09 |    97.05 |      12,183.05 |
 | Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  90.86 |    98.76 |      21,144.74 |
 | Single Agent                           | Rule-Augmented Few-Shot   |                  98.00 |    98.44 |       4,143.58 |
-| QA Agent                            | Rule-Augmented Few-Shot   |                  98.36 |    99.25 |       5,404.83 |
+| QA Agent                            | Rule-Augmented Few-Shot   |                  **98.36** |    99.25 |       5,404.83 |
 | Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  98.15 |    98.96 |      23,382.68 |
 | Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  97.55 |    99.11 |      22,155.49 |
 | Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.57 |    99.23 |      17,386.96 |
-| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.96 |    99.34 |      17,666.72 |
+| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.96 |    **99.34** |      17,666.72 |
 | Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.50 |    99.19 |      24,080.56 |
 
 
@@ -133,12 +133,12 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 | Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  91.50 |    96.99 |      11,672.22 |
 | Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  89.78 |    96.29 |      11,609.57 |
 | Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  91.96 |    97.65 |      20,432.18 |
-| Single Agent                           | Rule-Augmented Few-Shot   |                  96.98 |    99.30 |       3,843.29 |
+| Single Agent                           | Rule-Augmented Few-Shot   |                  **96.98** |    99.30 |       3,843.29 |
 | QA Agent                               | Rule-Augmented Few-Shot   |                  96.42 |    98.98 |       5,140.45 |
 | Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  96.89 |    99.25 |      21,635.40 |
 | Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  96.70 |    99.37 |      21,154.44 |
-| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.28 |    99.54 |      16,279.48 |
-| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.41 |    99.54 |      16,197.11 |
+| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.28 |    **99.54** |      16,279.48 |
+| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.41 |    **99.54** |      16,197.11 |
 | Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.12 |    99.46 |      23,078.21 |
 
 
