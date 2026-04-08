@@ -34,7 +34,7 @@ The collaborative multi-agent system separates test generation into distinct pla
 
 The system operates through a linear pipeline where three code architect agents independently analyze each problem and generate natural language pseudocode describing likely implementations. Each architect employs a different reasoning strategy—Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots—to maximize diversity in the generated plans. These plans are then consolidated and provided to a test generator agent, which produces comprehensive test suites covering both basic functionality and edge cases.
 
-After test generation, a merger agent reconciles outputs using one of two strategies. The **concat** strategy performs basic concatenation of all generated tests after removing empty entries. The **accuracy** strategy extend **concat** strategy by adding validations like filtering tests with syntax errors, AST-based deduplication, filtering of tests with incorrect function names, and retaining only those that pass successfully by executing them against the canonical solution.
+After test generation, a merger agent reconciles outputs using one of three strategies. The **concat** strategy performs basic concatenation of all generated tests after removing empty entries. The **accuracy** strategy extends **concat** strategy by adding validations like filtering tests with syntax errors, AST-based deduplication, filtering of tests with incorrect function names, and retaining only those that pass successfully by executing them against the canonical solution. The **LLM-based** strategy employs a merger agent that is prompted to combine multiple test suites into a single high-quality output, following a set of predefined rules.
 
 This architecture enables complementary reasoning strategies to be combined, potentially improving coverage and robustness on complex functions. The separation of planning and testing roles allows each agent to focus on its specialized task, while the merge phase ensures coherent final test suites.
 
@@ -42,9 +42,12 @@ This architecture enables complementary reasoning strategies to be combined, pot
 
 The competitive multi-agent approach generates complete test suites independently from each agent configuration and selects the highest-quality output. Rather than combining outputs, agents compete to produce the best solution.
 
-Each agent follows the same two-stage pipeline as the collaborative approach: a code architect generates pseudocode using a specific reasoning strategy, followed by a test generator producing test cases. However, each agent pair operates independently without sharing information during generation. All agent outputs are evaluated against the canonical solution using coverage and execution success rate metrics.
+Each agent follows the same two-stage pipeline as the collaborative approach: a code architect generates pseudocode using a specific reasoning strategy, followed by a test generator producing test cases. However, each agent pair operates independently without sharing information during generation. 
 
-The final test suite is selected by ranking agents according to total line coverage as the primary criterion and test execution success rate as a tiebreaker. This ensures the system delivers the most comprehensive and correct test suite from among all candidates. All intermediate results from competing agents are preserved for analysis.
+The final test suite is selected by a **Judge** agent (LLM-based), which evaluates candidate suites as a black-box. The Judge can operate as a **selector** choosing the best candidate based on the observable quality of the test suite—clarity, determinism, diversity of tested behaviors, and presence of meaningful edge cases—or as a **scorer**, assigning scores independently to each suite on the same criteria.
+All intermediate results from competing agents are preserved for analysis.
+
+After selection, the chosen test suite is evaluated against the canonical solution using metrics such as coverage, execution success rate, and token usage. Candidate suites that were not selected are also evaluated using the same metrics for post-hoc analysis, providing insights into the relative quality of different generation strategies and the effectiveness of the Judge, without affecting the selection process.
 
 This competitive architecture allows direct comparison of different reasoning strategies under identical conditions. By evaluating each approach independently, the system avoids potential quality degradation from merging incompatible test cases while ensuring delivery of the best-performing solution.
 
@@ -64,21 +67,21 @@ These metrics provide complementary perspectives: coverage measures thoroughness
 
 ### Experimental Setup
 
-All experiments (single agent, multi agent cooperative, multi agent competitive, QAagent) are conducted on 20 functions selected from the HumanEval benchmark (average of 10 runs), then on the complete HumanEval benchmark (1 run).
+All experiments (single agent, multi-agent collaborative, multi-agent competitive, QAagent) are conducted on two settings: a subset of 20 functions from the HumanEval benchmark and the complete HumanEval dataset (164 problems). In both cases, results are reported as the average over 10 independent runs.
 
-For single-agent experiments, each problem is evaluated once with the baseline configuration. Multi-agent experiments generate multiple independent planning perspectives per problem, which are then either merged or evaluated competitively depending on the architecture being tested.
+In the single-agent setup, each run generates a single test suite directly from the problem description. In multi-agent setups, each run produces multiple planning perspectives via independent architect agents; these outputs are then either merged (collaborative) or evaluated competitively (competitive) to produce the final test suite for that run.
 
 Prompt strategy:
 - **Single-Agent**, available prompts are: 
-  - **Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots)
+  - **Rule-Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots)
+  - **Standard Few-Shot**** (assign role, task, formatting rule, few-shots)
   - **Zero-Shot** (assign role, task, formatting rule)
-  - **original** (assign role, task, formatting rule, few-shots)
 - **Multi-Agent cooperative** and **Multi-Agent competitive**:
   - **Architect**: Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots
-  - **Generator**: **Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
+  - **Generator**: **Rule-Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
 - **QAagent**:
   - **Architect**: Chain-of-Thought (assign role, task, plan formatting, few-shots)
-  - **Generator**: **Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
+  - **Generator**: **Rule-Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
 
 
 ### Model Choice
@@ -118,27 +121,8 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 | Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.96 |    99.34 |      17,666.72 |
 | Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.50 |    99.19 |      24,080.56 |
 
-#### HumanEval - Full Dataset (164 Problems) (1 Run)
 
-| Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
-| :------------------------------------- | :------------------------ | ---------------------: | -------: | -------------: |
-| Single Agent                           | Zero Shot (Baseline)      |                  62.76 |    69.61 |       2,241.52 |
-| Single Agent                           | Standard Few-Shot         |                  90.48 |    96.01 |       2,194.08 |
-| QA Agent                               | Standard Few-Shot         |                  90.58 |    97.66 |       3,437.36 |
-| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot         |                  92.64 |    98.41 |      18,181.55 |
-| Multi-Agent Competitive (LLM selector) | Standard Few-Shot         |                  94.03 |    98.96 |      17,168.58 |
-| Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  90.23 |    96.98 |      11,247.51 |
-| Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  89.43 |    97.72 |      11,517.63 |
-| Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  92.18 |    98.94 |      20,502.63 |
-| Single Agent                           | Rule-Augmented Few-Shot   |                  97.31 |    98.83 |       3,873.74 |
-| QA Agent                            | Rule-Augmented Few-Shot   |                  96.45 |    98.97 |       5,294.81 |
-| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  97.25 |    99.62 |      22,125.34 |
-| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  97.15 |    99.75 |      21,573.32 |
-| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.23 |    99.03 |      16,547.70 |
-| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.55 |    99.65 |      16,874.83 |
-| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.25 |    99.55 |      23,436.51 |
-
-#### HumanEval - Full Dataset (164 Problems) (10 Runs)
+#### HumanEval - Full Dataset (164 Problems) (Average of 10 Runs)
 | Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
 |:---------------------------------------| :------------------------ |-----------------------:|---------:|---------------:|
 | Single Agent                           | Zero Shot (Baseline)      |                  62.17 |    68.23 |       2,149.84 |
@@ -160,12 +144,12 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 
 ### Observations & Conclusion
 1.  **Prompt Engineering Matters**: Across all strategies, **Rule-Augmented Few-Shot** consistently outperforms **Standard Few-Shot** and **Zero Shot**, confirming that prompt quality remains a major driver of both execution success and coverage.
-2.  **Best Execution Success Rate**: On the 20-problem subset, **Multi-Agent (Rule-Augmented Few-Shot)** reaches **98.36%**; on the full dataset, **Single Agent (Rule-Augmented Few-Shot)** achieves **97.31%**.
-3.  **Best Coverage**: On the 20-problem subset, **Multi-Agent Merge (Concat, Rule-Augmented Few-Shot)** reaches **99.34%** coverage; on the full dataset, **Multi-Agent Competitive (LLM selector, Rule-Augmented Few-Shot)** reaches **99.75%**.
+2. **Best Execution Success Rate**: On the 20-problem subset, **QA Agent (Rule-Augmented Few-Shot)** achieves the highest execution success rate (**98.36%**); on the full dataset, **Single Agent (Rule-Augmented Few-Shot)** reaches the best performance (**96.98%**).
+3. **Best Coverage**: On the 20-problem subset, **Multi-Agent Merge (Concat, Rule-Augmented Few-Shot)** achieves the highest coverage (**99.34%**); on the full dataset, **Multi-Agent Merge (Accuracy/Concat, Rule-Augmented Few-Shot)** reaches the best coverage (**99.54%**).
 4.  **Competitive vs. Efficient**:
     *   **Single Agent** variants remain the most token-efficient and still deliver strong performance.
     *   **Multi-Agent** competitive/merge variants can improve peak metrics, but usually require significantly higher token budgets.
-5.  **Cost-Benefit Analysis**: For most practical workloads, **Single Agent (Rule-Augmented Few-Shot)** provides the strongest balance of quality and compute cost, while multi-agent variants are more suitable when maximizing top-end quality is worth the additional tokens.
+5.  **Cost-Benefit Analysis**: For most practical workloads, **Single Agent (Rule-Augmented Few-Shot)** provides the strongest balance of quality and compute cost, while multi-agent approaches are more suitable when maximizing coverage is a priority, despite requiring significantly higher token budgets (typically 3–4×).
 
 ## Running Experiment Scripts
 
