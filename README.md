@@ -74,7 +74,7 @@ In the single-agent setup, each run generates a single test suite directly from 
 Prompt strategy:
 - **Single-Agent**, available prompts are: 
   - **Rule-Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots)
-  - **Standard Few-Shot**** (assign role, task, formatting rule, few-shots)
+  - **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
   - **Zero-Shot** (assign role, task, formatting rule)
 - **Multi-Agent cooperative** and **Multi-Agent competitive**:
   - **Architect**: Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots
