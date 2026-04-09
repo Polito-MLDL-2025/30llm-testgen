@@ -40,7 +40,7 @@ def parse_args(argv=None):
 
     parser.add_argument(
         "--model",
-        default="meta/llama3-8b-instruct",
+        default="nvidia/nemotron-3-nano-30b-a3b",
         help="Specify the model to use."
     )
     parser.add_argument(
@@ -104,7 +104,7 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--generator-prompt",
-        choices=["default", "original"],
+        choices=["default", "original", "zero_shot"],
         default="default",
         help=(
             "Test generator prompt to use: 'default' uses the standard prompt, "

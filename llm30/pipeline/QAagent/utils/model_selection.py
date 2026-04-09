@@ -1,6 +1,6 @@
 import os
 
-DEFAULT_PLAN_MODEL = "meta/llama3-8b-instruct"
+DEFAULT_PLAN_MODEL = "nvidia/nemotron-3-nano-30b-a3b"
 
 ENV_OPENAI_API_MODEL = "OPENAI_API_MODEL"
 ENV_QAAGENT_MODEL = "QAAGENT_MODEL"

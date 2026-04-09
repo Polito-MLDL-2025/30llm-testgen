@@ -230,7 +230,7 @@ def main(argv=None) -> int:
 
     # generator_prompts = ["original"]
     generator_prompts = ["default", "original"]
-    merge_strategies = ("accuracy", "concat", "llm", "llm_multi_steps")
+    merge_strategies = ("accuracy", "concat", "llm")
     # merge_strategies = ["accuracy"]
     # merge_strategies = ["accuracy", "concat", "llm"]
 
