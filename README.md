@@ -34,7 +34,8 @@ The collaborative multi-agent system separates test generation into distinct pla
 
 The system operates through a linear pipeline where three code architect agents independently analyze each problem and generate natural language pseudocode describing likely implementations. Each architect employs a different reasoning strategy—Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots—to maximize diversity in the generated plans. These plans are then consolidated and provided to a test generator agent, which produces comprehensive test suites covering both basic functionality and edge cases.
 
-After test generation, a merger agent reconciles outputs using one of three strategies. The **concat** strategy performs basic concatenation of all generated tests after removing empty entries. The **accuracy** strategy extends **concat** strategy by adding validations like filtering tests with syntax errors, AST-based deduplication, filtering of tests with incorrect function names, and retaining only those that pass successfully by executing them against the canonical solution. The **LLM-based** strategy employs a merger agent that is prompted to combine multiple test suites into a single high-quality output, following a set of predefined rules.
+After test generation, a merger agent reconciles outputs using one of three strategies. The **concat** strategy performs basic concatenation of all generated tests after removing empty entries. The **accuracy** strategy extends **concat** strategy by adding validations like filtering tests with syntax errors, AST-based deduplication, and filtering of tests with incorrect function names. The **LLM-based** strategy employs a merger agent that is prompted to combine multiple test suites into a single high-quality output, following a set of predefined rules.
+After merging, the test merged suite is evaluated against the canonical solution using metrics such as coverage, execution success rate, and token usage.
 
 This architecture enables complementary reasoning strategies to be combined, potentially improving coverage and robustness on complex functions. The separation of planning and testing roles allows each agent to focus on its specialized task, while the merge phase ensures coherent final test suites.
 
@@ -57,7 +58,7 @@ This competitive architecture allows direct comparison of different reasoning st
 
 Test quality is assessed using three complementary metrics that capture different aspects of test effectiveness:
 
-**Coverage:** Line coverage percentage measures the proportion of source code lines executed during test execution. Coverage for both the first five generated tests and the complete test suite are reported.
+**Coverage:** Line coverage percentage measures the proportion of source code lines executed during test execution.
 
 **Execution Success Rate:** Test execution success rate is defined as the proportion of generated tests that pass when executed against the canonical solution. This metric validates that generated tests correctly specify expected behavior and do not contain false positives. Execution success rate is computed by executing each test case individually and recording pass/fail outcomes.
 
@@ -80,7 +81,7 @@ Prompt strategy:
   - **Architect**: Chain-of-Thought with few-shots and zero-shot, and ReAct with few-shots
   - **Generator**: **Rule-Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
 - **QAagent**:
-  - **Architect**: Chain-of-Thought (assign role, task, plan formatting, few-shots)
+  - **Architect**: Chain-of-Thought (assign role, task, formatting rule, few-shots)
   - **Generator**: **Rule-Augmented Few-Shot** (assign role, task, rules, formatting rule, few-shots) or **Standard Few-Shot** (assign role, task, formatting rule, few-shots)
 
 
@@ -103,50 +104,50 @@ All experiments use consistent decoding parameters (temperature, top-p) across c
 
 #### HumanEval - 20 Selected Problems (Average of 10 Runs)
 
-| Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
-| :------------------------------------- | :------------------------ | ---------------------: | -------: | -------------: |
-| Single Agent                           | Zero Shot (Baseline)      |                  61.55 |    68.03 |       2,372.58 |
-| Single Agent                           | Standard Few-Shot         |                  88.38 |    96.57 |       2,287.66 |
-| QA Agent                               | Standard Few-Shot         |                  88.47 |    97.17 |       3,651.18 |
-| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot         |                  93.94 |    98.12 |      19,047.33 |
-| Multi-Agent Competitive (LLM selector) | Standard Few-Shot         |                  93.07 |    98.04 |      17,783.04 |
-| Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  86.59 |    91.78 |      12,278.32 |
-| Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  90.09 |    97.05 |      12,183.05 |
-| Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  90.86 |    98.76 |      21,144.74 |
-| Single Agent                           | Rule-Augmented Few-Shot   |                  98.00 |    98.44 |       4,143.58 |
-| QA Agent                            | Rule-Augmented Few-Shot   |                  **98.36** |    99.25 |       5,404.83 |
-| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  98.15 |    98.96 |      23,382.68 |
-| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  97.55 |    99.11 |      22,155.49 |
-| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.57 |    99.23 |      17,386.96 |
-| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.96 |    **99.34** |      17,666.72 |
-| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.50 |    99.19 |      24,080.56 |
+| Strategy                               | Prompt                  | Execution Success Rate |  Coverage | Tokens/Problem |
+| :------------------------------------- | :---------------------- | ---------------------: | --------: | -------------: |
+| Single Agent                           | Zero Shot (Baseline)    |                  61.55 |     68.03 |       2,372.58 |
+| Single Agent                           | Standard Few-Shot       |                  88.38 |     96.57 |       2,287.66 |
+| QA Agent                               | Standard Few-Shot       |                  88.47 |     97.17 |       3,651.18 |
+| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot       |                  93.94 |     98.12 |      19,047.33 |
+| Multi-Agent Competitive (LLM selector) | Standard Few-Shot       |                  93.07 |     98.04 |      17,783.04 |
+| Multi-Agent Merge (Accuracy)           | Standard Few-Shot       |                  86.59 |     91.78 |      12,278.32 |
+| Multi-Agent Merge (Concat)             | Standard Few-Shot       |                  90.09 |     97.05 |      12,183.05 |
+| Multi-Agent Merge (LLM)                | Standard Few-Shot       |                  90.86 |     98.76 |      21,144.74 |
+| Single Agent                           | Rule-Augmented Few-Shot |                  98.00 |     98.44 |       4,143.58 |
+| QA Agent                               | Rule-Augmented Few-Shot |              **98.36** |     99.25 |       5,404.83 |
+| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot |                  98.15 |     98.96 |      23,382.68 |
+| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot |                  97.55 |     99.11 |      22,155.49 |
+| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot |                  96.57 |     99.23 |      17,386.96 |
+| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot |                  96.96 | **99.34** |      17,666.72 |
+| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot |                  96.50 |     99.19 |      24,080.56 |
 
 
 #### HumanEval - Full Dataset (164 Problems) (Average of 10 Runs)
-| Strategy                               | Prompt                    | Execution Success Rate | Coverage | Tokens/Problem |
-|:---------------------------------------| :------------------------ |-----------------------:|---------:|---------------:|
-| Single Agent                           | Zero Shot (Baseline)      |                  62.17 |    68.23 |       2,149.84 |
-| Single Agent                           | Standard Few-Shot         |                  91.11 |    96.15 |       2,400.29 |
-| QA Agent                               | Standard Few-Shot         |                  88.65 |    96.12 |       3,521.80 |
-| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot         |                  93.02 |    97.83 |      17,584.13 |
-| Multi-Agent Competitive (LLM selector) | Standard Few-Shot         |                  92.51 |    98.39 |      16,968.47 |
-| Multi-Agent Merge (Accuracy)           | Standard Few-Shot         |                  91.50 |    96.99 |      11,672.22 |
-| Multi-Agent Merge (Concat)             | Standard Few-Shot         |                  89.78 |    96.29 |      11,609.57 |
-| Multi-Agent Merge (LLM)                | Standard Few-Shot         |                  91.96 |    97.65 |      20,432.18 |
-| Single Agent                           | Rule-Augmented Few-Shot   |                  **96.98** |    99.30 |       3,843.29 |
-| QA Agent                               | Rule-Augmented Few-Shot   |                  96.42 |    98.98 |       5,140.45 |
-| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot   |                  96.89 |    99.25 |      21,635.40 |
-| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot   |                  96.70 |    99.37 |      21,154.44 |
-| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot   |                  96.28 |    **99.54** |      16,279.48 |
-| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot   |                  96.41 |    **99.54** |      16,197.11 |
-| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot   |                  96.12 |    99.46 |      23,078.21 |
+| Strategy                               | Prompt                  | Execution Success Rate |  Coverage | Tokens/Problem |
+| :------------------------------------- | :---------------------- | ---------------------: | --------: | -------------: |
+| Single Agent                           | Zero Shot (Baseline)    |                  62.17 |     68.23 |       2,149.84 |
+| Single Agent                           | Standard Few-Shot       |                  91.11 |     96.15 |       2,400.29 |
+| QA Agent                               | Standard Few-Shot       |                  88.65 |     96.12 |       3,521.80 |
+| Multi-Agent Competitive (LLM scorer)   | Standard Few-Shot       |                  93.02 |     97.83 |      17,584.13 |
+| Multi-Agent Competitive (LLM selector) | Standard Few-Shot       |                  92.51 |     98.39 |      16,968.47 |
+| Multi-Agent Merge (Accuracy)           | Standard Few-Shot       |                  91.50 |     96.99 |      11,672.22 |
+| Multi-Agent Merge (Concat)             | Standard Few-Shot       |                  89.78 |     96.29 |      11,609.57 |
+| Multi-Agent Merge (LLM)                | Standard Few-Shot       |                  91.96 |     97.65 |      20,432.18 |
+| Single Agent                           | Rule-Augmented Few-Shot |              **96.98** |     99.30 |       3,843.29 |
+| QA Agent                               | Rule-Augmented Few-Shot |                  96.42 |     98.98 |       5,140.45 |
+| Multi-Agent Competitive (LLM scorer)   | Rule-Augmented Few-Shot |                  96.89 |     99.25 |      21,635.40 |
+| Multi-Agent Competitive (LLM selector) | Rule-Augmented Few-Shot |                  96.70 |     99.37 |      21,154.44 |
+| Multi-Agent Merge (Accuracy)           | Rule-Augmented Few-Shot |                  96.28 | **99.54** |      16,279.48 |
+| Multi-Agent Merge (Concat)             | Rule-Augmented Few-Shot |                  96.41 | **99.54** |      16,197.11 |
+| Multi-Agent Merge (LLM)                | Rule-Augmented Few-Shot |                  96.12 |     99.46 |      23,078.21 |
 
 
 ### Observations & Conclusion
 1.  **Prompt Engineering Matters**: Across all strategies, **Rule-Augmented Few-Shot** consistently outperforms **Standard Few-Shot** and **Zero Shot**, confirming that prompt quality remains a major driver of both execution success and coverage.
 2. **Best Execution Success Rate**: On the 20-problem subset, **QA Agent (Rule-Augmented Few-Shot)** achieves the highest execution success rate (**98.36%**); on the full dataset, **Single Agent (Rule-Augmented Few-Shot)** reaches the best performance (**96.98%**).
 3. **Best Coverage**: On the 20-problem subset, **Multi-Agent Merge (Concat, Rule-Augmented Few-Shot)** achieves the highest coverage (**99.34%**); on the full dataset, **Multi-Agent Merge (Accuracy/Concat, Rule-Augmented Few-Shot)** reaches the best coverage (**99.54%**).
-4.  **Competitive vs. Efficient**:
+4.  **Performance vs. Efficiency**:
     *   **Single Agent** variants remain the most token-efficient and still deliver strong performance.
     *   **Multi-Agent** competitive/merge variants can improve peak metrics, but usually require significantly higher token budgets.
 5.  **Cost-Benefit Analysis**: For most practical workloads, **Single Agent (Rule-Augmented Few-Shot)** provides the strongest balance of quality and compute cost, while multi-agent approaches are more suitable when maximizing coverage is a priority, despite requiring significantly higher token budgets (typically 3–4×).
