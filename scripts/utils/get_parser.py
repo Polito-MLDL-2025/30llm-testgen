@@ -4,7 +4,7 @@ import argparse
 def config_run_agent_parser(parser):
     parser.add_argument("--runs", type=int, default=10, help="Number of sequential runs.")
     parser.add_argument("--dataset", default="humaneval", help="Dataset to use.")
-    parser.add_argument("--model", default="meta/llama3-8b-instruct", help="Model name.")
+    parser.add_argument("--model", default="nvidia/nemotron-3-nano-30b-a3b", help="Model name.")
     parser.add_argument(
         "--qaagent-model",
         "--QAAGENT_MODEL",
